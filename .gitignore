@@ -1,0 +1,7 @@
+# Ignore all pickle files, which are usually created during debugging.
+*.pkl
+# Ignore all test files (.py or .ipynb) which are usually used for debugging. 
+test.*
+test*
+# Ignore the Pycash directory. 
+__pycache__/
