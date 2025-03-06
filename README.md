@@ -1,18 +1,20 @@
-# FTIR Analysis Tool
+# AutoFTIR
 
-[![GitHub License](https://img.shields.io/badge/License-GPL_3.0-yellow.svg)](https://github.com/farhad-abdollahi/FTIR_Analysis_Tool/blob/main/LICENSE)
+[![GitHub License](https://img.shields.io/badge/License-GPL_3.0-yellow.svg)](https://github.com/TFHRC-ABML/AutoFTIR/blob/main/LICENSE)
 
 **[paper](XXXX)**
 
 Authors and Contributors:
 - *S. Farhad Abdollahi (farhad.abdollahi.ctr@dot.gov)*
 - *Behnam Jahangiri (behnam.jahangiri.ctr@dot.gov)*
+- *Adrian Anderiescu (adrian.anderiescu.ctr@dot.gov*
+- *Aaron Leavitt (aaron.leavitt@dot.gov)*
 - *David Mensching (david.mensching@dot.gov)*
 
 
-This repository contains the official implementation of the **"FTIR Analysis Tool"**.
+This repository contains the official implementation of the **"AutoFTIR"**.
 
-The **FTIR Analysis Tool** is a user-friendly Graphical User Interface (GUI) developed in Python to assist pavement engineers in analyzing the results of Fourier Transform Infrared (FTIR) spectroscopy on asphalt binders. The tool offers the following key features:
+The **AutoFTIR** is a user-friendly Graphical User Interface (GUI) developed in Python to assist pavement engineers in analyzing the results of Fourier Transform Infrared (FTIR) spectroscopy on asphalt binders. The tool offers the following key features:
 
 - **Data Preprocessing**: Process raw FTIR spectra by applying baseline correction using the Asymmetric Least Squares (ALS) Smoothing method, followed by normalization of the largest peak to 0.15 within the wavenumber range of 600 to 1800 cm⁻¹.
 
@@ -49,7 +51,7 @@ Ensure you have Conda installed on your system. You can download and install it 
 Clone this repository to your local machine:
 
 ```bash
-git clone https://github.com/farhad-abdollahi/FTIR_Analysis_Tool.git
+git clone https://github.com/TFHRC-ABML/AutoFTIR.git
 cd FTIR_Analysis_Tool
 ```
 
@@ -100,7 +102,9 @@ The file must cover at least the wavenumber range of 550 to 1850 cm⁻¹. Exampl
 
 ## How to Use ##
 
-Talk about how to use this tool
+Use the "Add more data to DB" button to select the "*.dpt" files. Each spectrum will be shown and the user can change the Carbonyl, Sulfoxide, and Aliphatic boundaries for the peak recognition analysis methods. The deconvolution analysis method will be already imeplemented. The user can then decide to accept the results or label them as outlier. The results will be stored in the connected database. 
+
+User can use the "Review and Edit DB" button to review all test results in the database, and edit the analysis. The user can also combine all replicates of the same binder spectra and export the results using the "Analyze DB and Export to Excel" button. 
 
 ## Acknowledgement ##
 
