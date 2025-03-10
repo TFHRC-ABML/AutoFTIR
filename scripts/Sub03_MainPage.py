@@ -433,7 +433,7 @@ class MainPage(QMainWindow):
             'Aliphatic_Area_Baseline', 'Aliphatic_Area_Tangential', 
             'Carbonyl_Peak_Wavenumber', 'Sulfoxide_Peak_Wavenumber', 
             'Carbonyl_Peak_Absorption', 'Sulfoxide_Peak_Absorption',
-            'IsOutlier']
+            'IsOutlier', 'Deconv_ICO', 'Deconv_ISO']
         self.cursor.execute(f"SELECT {', '.join(Column2Fetch)} FROM FTIR")
         data = self.cursor.fetchall()
         data = pd.DataFrame(data, columns=Column2Fetch)
@@ -441,13 +441,16 @@ class MainPage(QMainWindow):
         # Prepare a table for the results. 
         Res ={
             'B_Number': [],
-            'Lab_Aging_Condition': [], 'Num_Data': [], 'ICO_Baseline_mean': [], 'ICO_Baseline_std': [], 
+            'Lab_Aging_Condition': [], 'Num_Data': [], 'ICO_Deconv_mean': [], 'ICO_Deconv_std': [], 
+            'ICO_Deconv_COV': [], 'ICO_Deconv_min': [], 'ICO_Deconv_max': [], 'ICO_Deconv_Data': [],
+            'ICO_Baseline_mean': [], 'ICO_Baseline_std': [], 
             'ICO_Baseline_COV': [], 'ICO_Baseline_min': [], 'ICO_Baseline_max': [], 'ICO_Baseline_Data': [], 
             'ICO_Tangential_mean': [], 'ICO_Tangential_std': [], 'ICO_Tangential_COV': [], 'ICO_Tangential_min': [], 
             'ICO_Tangential_max': [], 'ICO_Tangential_Data': [], 'ISO_Baseline_mean': [], 'ISO_Baseline_std': [], 
             'ISO_Baseline_COV': [], 'ISO_Baseline_min': [], 'ISO_Baseline_max': [], 'ISO_Baseline_Data': [], 
             'ISO_Tangential_mean': [], 'ISO_Tangential_std': [], 'ISO_Tangential_COV': [], 'ISO_Tangential_min': [], 
-            'ISO_Tangential_max': [], 'ISO_Tangential_Data': [], 
+            'ISO_Tangential_max': [], 'ISO_Tangential_Data': [], 'ISO_Deconv_mean': [], 'ISO_Deconv_std': [], 
+            'ISO_Deconv_COV': [], 'ISO_Deconv_min': [], 'ISO_Deconv_max': [], 'ISO_Deconv_Data': [],
             'Aliphatic_Area_Baseline_mean': [], 'Aliphatic_Area_Baseline_std': [], 'Aliphatic_Area_Baseline_COV': [], 
             'Aliphatic_Area_Baseline_min': [], 'Aliphatic_Area_Baseline_max': [], 'Aliphatic_Area_Baseline_Data': [], 
             'Aliphatic_Area_Tangential_mean': [], 'Aliphatic_Area_Tangential_std': [], 'Aliphatic_Area_Tangential_COV': [], 
@@ -492,8 +495,10 @@ class MainPage(QMainWindow):
                 Res['Num_Data'].append(len(RepData))
                 Res = AddResults(Res, RepData['ICO_Baseline'].to_numpy(),   'ICO_Baseline')
                 Res = AddResults(Res, RepData['ICO_Tangential'].to_numpy(), 'ICO_Tangential')
+                Res = AddResults(Res, RepData['Deconv_ICO'].to_numpy(),     'ICO_Deconv')
                 Res = AddResults(Res, RepData['ISO_Baseline'].to_numpy(),   'ISO_Baseline')
                 Res = AddResults(Res, RepData['ISO_Tangential'].to_numpy(), 'ISO_Tangential')
+                Res = AddResults(Res, RepData['Deconv_ISO'].to_numpy(),     'ISO_Deconv')
                 Res = AddResults(Res, RepData['Aliphatic_Area_Baseline'].to_numpy(), 'Aliphatic_Area_Baseline')
                 Res = AddResults(Res, RepData['Aliphatic_Area_Tangential'].to_numpy(), 'Aliphatic_Area_Tangential')
                 Res = AddResults(Res, RepData['Carbonyl_Peak_Wavenumber'].to_numpy(), 'Carbonyl_Peak_Wavenumber')

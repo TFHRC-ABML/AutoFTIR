@@ -7,13 +7,19 @@
 # Importing the required libraries.
 import sys
 import sqlite3
+import numpy as np
 from matplotlib import cm
-from matplotlib.colors import to_hex
+from matplotlib.colors import to_hex, LinearSegmentedColormap
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTableWidget, QTableWidgetItem, QGroupBox, 
     QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QMessageBox, QLabel, QFormLayout, QComboBox, QPlainTextEdit)
 from PyQt5.QtGui import QFont, QBrush, QColor
 from PyQt5.QtCore import Qt
 from scripts.Sub02_CreateNewSQLTable import Get_DB_SummaryData, Get_Identifier_Combinations
+
+# Define the custom cmap for the table COV colors. 
+Reds = cm.get_cmap('Reds', 256)             # Get the "reds" colormap.
+New  = Reds(np.linspace(0, 0.75, 256))      # Clip at 0.85 to prevent excessive dark red colors.
+Custom_cmap = LinearSegmentedColormap.from_list("custom_reds", New)
 
 
 class DB_ReviewPage(QMainWindow):
@@ -58,8 +64,10 @@ class DB_ReviewPage(QMainWindow):
         self.ColumnNamesAnalysis = [
             'B_Number', 'Lab_Aging_Condition', 'Num_Data', 
             'ICO_Baseline_mean', 'ICO_Baseline_std', 'ICO_Baseline_COV', 
+            'ICO_Deconv_mean', 'ICO_Deconv_std', 'ICO_Deconv_COV', 
             'ICO_Tangential_mean', 'ICO_Tangential_std', 'ICO_Tangential_COV', 
             'ISO_Baseline_mean', 'ISO_Baseline_std', 'ISO_Baseline_COV', 
+            'ISO_Deconv_mean', 'ISO_Deconv_std', 'ISO_Deconv_COV', 
             'ISO_Tangential_mean', 'ISO_Tangential_std', 'ISO_Tangential_COV', 
             'Aliphatic_Area_Baseline_mean', 'Aliphatic_Area_Baseline_std', 'Aliphatic_Area_Baseline_COV', 
             'Aliphatic_Area_Tangential_mean', 'Aliphatic_Area_Tangential_std', 'Aliphatic_Area_Tangential_COV', 
@@ -394,7 +402,7 @@ class DB_ReviewPage(QMainWindow):
             # Fill the table with the new analysis results.
             for row_idx, row_data in enumerate(Rows):
                 for col_idx, cell_data in enumerate(row_data):
-                    if col_idx in [5, 8, 11, 14, 17, 20, 23, 26, 29, 32]:
+                    if col_idx in [5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38]:
                         item = QTableWidgetItem(f'{cell_data*100:.1f}%')
                         ColorNumber = Get_Color_4_COV(cell_data)
                         item.setBackground(QBrush(QColor(ColorNumber)))
@@ -440,7 +448,7 @@ def Get_Color_4_COV(value):
     elif 0.15 <= value <= 0.5:
         # Normalize value to the range [0, 1] for the colormap
         normalized_value = (value - 0.15) / (0.5 - 0.15)
-        return to_hex(cm.Reds(normalized_value))  # Get color from Reds colormap
+        return to_hex(Custom_cmap(normalized_value))  # Get color from Reds colormap
     # Use "red" for more than 50%. 
     else:
         return to_hex((1.0, 0.0, 0.0))  # Bright red
