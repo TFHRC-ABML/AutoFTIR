@@ -102,6 +102,31 @@ The file must cover at least the wavenumber range of 550 to 1850 cm⁻¹. Exampl
 
 ## How to Use ##
 
+Upon running the code, the user should accept the "Terms of Use and Agreement", and then directed to the welcome page (see [Figure 1](#fig-welcome)). Here, user can either create a new database or load one. You may load the `./example/PTF5_DB.pd` database, which was provided with the package. 
+
+<a id="fig-welcome"></a>
+<p align="center">
+  <img src="./assets/WelcomePage.png" alt="Figure 1: Welcome page" width="500">
+</p>
+<p align="center"><b>Figure 1:</b> Welcome Page</p>
+
+The main page (see [Figure 2](#fig-main-nodata)) appears after loading the database. User can use the "Add more data to DB" button to select more `*.dpt` files to analyze and add them to the database. 
+
+<a id="fig-main-nodata"></a>
+<p align="center">
+  <img src="./assets/MainPage_NoData.png" alt="Figure 2: Main page (no data loaded)" width="700">
+</p>
+<p align="center"><b>Figure 2:</b> Main Page (No Data Loaded)</p>
+
+
+By selecting each `*.dpt` file, it is loaded into the main page as shown in [Figure 3(#fig-main-data)]. The deconvolution analysis method is ran by default and the results are available at the middle right group box. The peaks for carbonyl, sulfoxide, and aliphatic functional groups were also autmoatically detected and showed as highlighted regions in the corresponding graphs. However, it is noted that this peak recognition algorithms is not fully reliable and the user should trim the peak boundaries using the sping boxes in the right group box in the main page. 
+
+<a id="fig-main-data"></a>
+<p align="center">
+  <img src="./assets/MainPage_DataImported.png" alt="Figure 3: Main page (data loaded)" width="700">
+</p>
+<p align="center"><b>Figure 3:</b> Main Page (Data Loaded)</p>
+
 Use the "Add more data to DB" button to select the "*.dpt" files. Each spectrum will be shown and the user can change the Carbonyl, Sulfoxide, and Aliphatic boundaries for the peak recognition analysis methods. The deconvolution analysis method will be already imeplemented. The user can then decide to accept the results or label them as outlier. The results will be stored in the connected database. 
 
 User can use the "Review and Edit DB" button to review all test results in the database, and edit the analysis. The user can also combine all replicates of the same binder spectra and export the results using the "Analyze DB and Export to Excel" button. 
