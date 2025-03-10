@@ -49,7 +49,7 @@ class WelcomePage(QMainWindow):
         layout.addWidget(Label_Logo)
         # --------------------------------------------------------------------------------------------------------------
         # Title
-        Label_Title = QLabel(f"AutoFTIR")
+        Label_Title = QLabel(f"Asphalt Binder and Mixture Laboratory (ABML)\n\n\nAutoFTIR")
         Label_Title.setAlignment(Qt.AlignCenter)
         Label_Title.setFont(QFont("Arial", 17, QFont.Bold))
         Label_Title.setStyleSheet("color: #000000;")
