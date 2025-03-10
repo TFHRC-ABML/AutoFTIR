@@ -7,7 +7,7 @@
 Authors and Contributors:
 - *S. Farhad Abdollahi (farhad.abdollahi.ctr@dot.gov)*
 - *Behnam Jahangiri (behnam.jahangiri.ctr@dot.gov)*
-- *Adrian Anderiescu (adrian.anderiescu.ctr@dot.gov*
+- *Adrian Anderiescu (adrian.anderiescu.ctr@dot.gov)*
 - *Aaron Leavitt (aaron.leavitt@dot.gov)*
 - *David Mensching (david.mensching@dot.gov)*
 
@@ -116,16 +116,16 @@ If you use our code or method in your work, please consider citing the following
 
 ```bibtex
 @misc{AbdollahiFTIRAnalysisTool2025,
-  title = {XXXX},
-  author = {Abdollahi, Seyed Farhad and Jahangiri, Behnam and Mensching, David},
-  year = {2025},
+  title = {Development of an Automated FTIR Analysis Framework for Asphalt Binders Using Asymmetric Least Squares Smoothing and Deconvolution},
+  author = {Abdollahi, Seyed Farhad and Jahangiri, Behnam, Andriescu, Adrian, Leavitt, Aaron and Mensching, David},
+  year = {TBD},
   month = XX,
-  publisher = {XXXX},
+  publisher = {Road Materials and Pavement Design},
   doi = {XXXXX},
   urldate = {2024-10-09},
   archiveprefix = {XXX},
   langid = {english},
-  keywords = {XXX,XXX,XXX,XXX,XXXX}
+  keywords = {FTIR,asphalt binder,deconvolution,oxidation,aging,RTFO,PAV,pavement testing facility,recycling agents,AutoFTIR}
 }
 ```
 
