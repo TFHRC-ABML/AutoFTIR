@@ -12,17 +12,17 @@ import numpy as np
 import pandas as pd
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QSpinBox, QDoubleSpinBox, QLabel, \
     QPushButton, QWidget, QGridLayout, QFormLayout, QLineEdit, QFileDialog, QMessageBox, QGroupBox, QProgressBar, \
-    QPlainTextEdit, QStackedWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate
-from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator
+    QPlainTextEdit, QStackedWidget, QTableWidget, QTableWidgetItem, QStyledItemDelegate, QComboBox
+from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QDoubleValidator, QIntValidator
 from PyQt5.QtCore import Qt, QRegExp
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from scripts.Sub02_CreateNewSQLTable import Get_DB_SummaryData, Append_to_Database, Get_Info_From_Name, Update_Row_in_Database
 from scripts.Sub04_FTIR_Analysis_Functions import Read_FTIR_Data, Baseline_Adjustment_ALS, Normalization_Method_B, \
     Calc_Aliphatic_Area, Calc_Carbonyl_Area, Calc_Sulfoxide_Area, Array_to_Binary, Binary_to_Array, Find_Peaks, \
-    FindRepresentativeRows
+    FindRepresentativeRows, Normalization_Method_A, Normalization_Method_B, Normalization_Method_C, Normalization_Method_D 
 from scripts.Sub05_ReviewPage import DB_ReviewPage
-from scripts.Sub07_Deconvolution_Analysis import gaussian_bell
+from scripts.Sub07_Deconvolution_Analysis import gaussian_bell, Run_Deconvolution
 
 
 class Revise_FTIR_AnalysisPage(QMainWindow):
@@ -52,7 +52,10 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             'Deconv_SulfoxideList', 'Deconv_SulfoxideList_shape', 'Deconv_SulfoxideList_dtype', 
             'Deconv_AliphaticList', 'Deconv_AliphaticList_shape', 'Deconv_AliphaticList_dtype', 
             'Deconv_ICO', 'Deconv_ISO', 
-            'Deconv_GaussianList', 'Deconv_GaussianList_shape', 'Deconv_GaussianList_dtype']
+            'Deconv_GaussianList', 'Deconv_GaussianList_shape', 'Deconv_GaussianList_dtype', 
+            'ALS_Lambda', 'ALS_Ratio', 'ALS_NumIter', 'Normalization_Method', 'Normalization_Coeff',
+            'RawWavenumber', 'RawWavenumber_shape', 'RawWavenumber_dtype',
+            'RawAbsorbance', 'RawAbsorbance_shape', 'RawAbsorbance_dtype']
         self.initUI()
     # ------------------------------------------------------------------------------------------------------------------
     def initUI(self):
@@ -110,7 +113,71 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         Section01_Layout.addLayout(FormLayout_Right)
         Section01_Layout.addWidget(self.Button_Sync, alignment=Qt.AlignHCenter | Qt.AlignTop)
         Section01.setLayout(Section01_Layout)
-        LeftLayout.addWidget(Section01, 10)
+        Left_Top_Layout = QHBoxLayout()
+        Left_Top_Layout.addWidget(Section01, 50)
+        # --------------------------------------------------------------------------------------------------------------
+        # Section 1-2: Preprocessing options. 
+        Section12 = QGroupBox("Pre-Processing Options")
+        Section12_Layout = QHBoxLayout()
+        FormLayout12_Left  = QFormLayout()            # Define a form layout for the left side.
+        FormLayout12_Right = QFormLayout()            # Define a form layout for the right side. 
+        # Create the left side labels in Section 01.
+        Label12_01 = QLabel("ALS Lambda:".ljust(13))
+        self.LineEdit_ALSLambda = QLineEdit()
+        self.LineEdit_ALSLambda.setPlaceholderText("Enter Lambda parameter ...")
+        self.LineEdit_ALSLambda.setReadOnly(False)
+        LambdaValidator = QDoubleValidator(10, 10000000000, 3)
+        LambdaValidator.setNotation(QDoubleValidator.ScientificNotation)
+        self.LineEdit_ALSLambda.setValidator(LambdaValidator)
+        self.LineEdit_ALSLambda.setText("1e6")
+        Label12_02 = QLabel("ALS Ratio:".ljust(13))
+        self.LineEdit_ALSRatio = QLineEdit()
+        self.LineEdit_ALSRatio.setPlaceholderText("Enter ratio parameter ...")
+        self.LineEdit_ALSRatio.setReadOnly(False)
+        RatioValidator = QDoubleValidator(0.0001, 0.5, 6)
+        RatioValidator.setNotation(QDoubleValidator.ScientificNotation)
+        self.LineEdit_ALSRatio.setValidator(RatioValidator)
+        self.LineEdit_ALSRatio.setText("1e-1")
+        Label12_03 = QLabel("ALS Num Iterations:".ljust(22))
+        self.LineEdit_ALSNumIter = QLineEdit()
+        self.LineEdit_ALSNumIter.setPlaceholderText("Enter number of iterations ...")
+        self.LineEdit_ALSNumIter.setReadOnly(False)
+        NumIterValidator = QIntValidator(100, 1000)
+        self.LineEdit_ALSNumIter.setValidator(NumIterValidator)
+        Label12_04 = QLabel("Normalization Method:".ljust(22))
+        self.DropDown_NormalizationMethod = QComboBox()
+        self.DropDown_NormalizationMethod.addItems(["Method A (400 to 4000 cm-1)", 
+                                                    "Method B (400 to 1800 cm-1)", 
+                                                    "Method C (400 to 4000 cm-1)",
+                                                    "Method D (400 to 1800 cm-1)"])
+        self.DropDown_NormalizationMethod.setCurrentIndex(1)
+        # Replotting button.
+        self.Button_UpdatePreprocess = QPushButton("Update\nRe-Plot")
+        self.Button_UpdatePreprocess.setFont(QFont("Arial", 8))
+        self.Button_UpdatePreprocess.clicked.connect(self.Function_Button_UpdatePreprocessing)
+        self.Button_UpdatePreprocess.setFixedSize(70, 50)
+        self.Button_UpdatePreprocess.setStyleSheet(
+        """
+        QPushButton:hover {background-color: lightgray;}
+        QPushButton:pressed {background-color: gray;}
+        """)
+        # Make everything disable. 
+        self.LineEdit_ALSLambda.setEnabled(False)
+        self.LineEdit_ALSRatio.setEnabled(False)
+        self.LineEdit_ALSNumIter.setEnabled(False)
+        self.DropDown_NormalizationMethod.setEnabled(False)
+        self.Button_UpdatePreprocess.setEnabled(False)
+        # Place the labels in the GUI.
+        FormLayout12_Left.addRow(Label12_01, self.LineEdit_ALSLambda)
+        FormLayout12_Left.addRow(Label12_02, self.LineEdit_ALSRatio)
+        FormLayout12_Right.addRow(Label12_03, self.LineEdit_ALSNumIter)
+        FormLayout12_Right.addRow(Label12_04, self.DropDown_NormalizationMethod)
+        Section12_Layout.addLayout(FormLayout12_Left)
+        Section12_Layout.addLayout(FormLayout12_Right)
+        Section12_Layout.addWidget(self.Button_UpdatePreprocess, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        Section12.setLayout(Section12_Layout)
+        Left_Top_Layout.addWidget(Section12, 60)
+        LeftLayout.addLayout(Left_Top_Layout, 10)
         # --------------------------------------------------------------------------------------------------------------
         # Section 2: Matplotlib plots. 
         Section02 = QGroupBox("Plotting Section")
@@ -340,19 +407,20 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.Bnumber = row[13]
         self.LabAging = row[14]
         self.RepNumber = row[15]
-        self.Xraw = self.X
-        self.Yraw = self.Y / self.NormCoeff
-        Carbonyl_Gaussians  = Binary_to_Array(row[16], row[17], row[18])
-        Sulfoxide_Gaussians = Binary_to_Array(row[19], row[20], row[21])
-        Aliphatic_Gaussians = Binary_to_Array(row[22], row[23], row[24])
-        self.GaussianList   = Binary_to_Array(row[27], row[28], row[29])
+        self.Carbonyl_Gaussians  = Binary_to_Array(row[16], row[17], row[18])
+        self.Sulfoxide_Gaussians = Binary_to_Array(row[19], row[20], row[21])
+        self.Aliphatic_Gaussians = Binary_to_Array(row[22], row[23], row[24])
+        self.GaussianList        = Binary_to_Array(row[27], row[28], row[29])
+        self.ALS_Lambda     = row[30]
+        self.ALS_Ratio      = row[31]
+        self.ALS_NumIter    = row[32]
+        Normalization_Method = row[33]
+        self.Normalization_Coeff = row[34]
+        RawX = Binary_to_Array(row[35], row[36], row[37])
+        RawY = Binary_to_Array(row[38], row[39], row[40])
+        self.RawData = np.column_stack((RawX, RawY))
         ICO   = row[25]
         ISO   = row[26]
-        # --------------------------------------------------------------------------------------------------------------
-        # Find the index of the Gaussians for each list. 
-        self.Index_C = [np.where((self.GaussianList == row).all(axis=1))[0][0] for row in Carbonyl_Gaussians]
-        self.Index_S = [np.where((self.GaussianList == row).all(axis=1))[0][0] for row in Sulfoxide_Gaussians]
-        self.Index_A = [np.where((self.GaussianList == row).all(axis=1))[0][0] for row in Aliphatic_Gaussians]
         # --------------------------------------------------------------------------------------------------------------
         # Adding the Fitted Gaussians to the table. 
         self.GL_Table.clearSelection()
@@ -363,9 +431,9 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
                 self.GL_Table.setItem(row_idx, col_idx, item)
         # --------------------------------------------------------------------------------------------------------------
         # Calculating the Areas. 
-        CArea = (Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Carbonyl_Gaussians[:, 1])).sum()
-        SArea = (Sulfoxide_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Sulfoxide_Gaussians[:, 1])).sum()
-        AArea = (Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Aliphatic_Gaussians[:, 1])).sum()
+        CArea = (self.Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Carbonyl_Gaussians[:, 1])).sum()
+        SArea = (self.Sulfoxide_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Sulfoxide_Gaussians[:, 1])).sum()
+        AArea = (self.Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Aliphatic_Gaussians[:, 1])).sum()
         # Update the deconvolution information. 
         self.Decon_Label_CArea.setText(f'Carbonyl Area: {CArea:.2f}')
         self.Decon_Label_SArea.setText(f'Sulfoxide Area: {SArea:.2f}')
@@ -399,12 +467,25 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.spinboxes[3].setRange(self.XS[self.XSminIndx + 1], 1100)
         self.spinboxes[4].setRange(1300, self.XA[self.XAmaxIndx - 1])
         self.spinboxes[5].setRange(self.XA[self.XAminIndx + 1], 1600)
+        # Update the preprocessing properties. 
+        self.LineEdit_ALSLambda.setText(f"{self.ALS_Lambda:.3e}")
+        self.LineEdit_ALSRatio.setText(f"{self.ALS_Ratio:.6e}")
+        self.LineEdit_ALSNumIter.setText(f"{self.ALS_NumIter}")
+        if 'A' in Normalization_Method:
+            self.DropDown_NormalizationMethod.setCurrentIndex(0)
+        elif 'B' in Normalization_Method:
+            self.DropDown_NormalizationMethod.setCurrentIndex(1)
+        elif 'C' in Normalization_Method:
+            self.DropDown_NormalizationMethod.setCurrentIndex(2)
+        elif 'D' in Normalization_Method:
+            self.DropDown_NormalizationMethod.setCurrentIndex(3)
+        self.LineEdit_ALSLambda.setEnabled(True)
+        self.LineEdit_ALSRatio.setEnabled(True)
+        self.LineEdit_ALSNumIter.setEnabled(True)
+        self.DropDown_NormalizationMethod.setEnabled(True)
+        self.Button_UpdatePreprocess.setEnabled(True)
     # ------------------------------------------------------------------------------------------------------------------
     def RePlotting(self):
-        # Find the Aliphatic, Carbonyl and sulfoxide Gaussian lists. 
-        Carbonyl_Gaussians  = self.GaussianList[self.Index_C]
-        Sulfoxide_Gaussians = self.GaussianList[self.Index_S]
-        Aliphatic_Gaussians = self.GaussianList[self.Index_A]
         # First, clear the plots.
         for j in range(4):
             self.axes[j].cla()
@@ -419,7 +500,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             self.axes[i].grid(which='both', color='gray', alpha=0.1)
         # First, whole wavenumbers. 
         self.axes[0].plot(self.X, self.Y, color='k', ls='-', label='Processed data')
-        self.axes[0].plot(self.Xraw, self.Yraw, color='b', ls='-', lw=0.5, label='raw data')
+        self.axes[0].plot(self.RawData[:, 0], self.RawData[:, 1], color='b', ls='-', lw=0.5, label='raw data')
         self.axes[0].axvspan(xmin=1620, xmax=1800, alpha=0.1, color='r', label='Carbonyl search area')
         self.axes[0].axvspan(xmin=970,  xmax=1070, alpha=0.1, color='y', label='Sulfoxide search area')
         self.axes[0].legend()
@@ -436,14 +517,16 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.axes[1].fill_between(self.XC[self.CIndex2], self.YC[self.CIndex2], 0, color='r', alpha=0.2, 
                                   label='Carbonyl Area')
         Xgaussian = np.linspace(1600, 1800, num=1000)
-        for ii in range(Carbonyl_Gaussians.shape[0]):
+        for ii in range(self.Carbonyl_Gaussians.shape[0]):
             if ii == 0:
-                self.axes[1].plot(Xgaussian, gaussian_bell(Xgaussian, Carbonyl_Gaussians[ii, 0], 
-                                                        Carbonyl_Gaussians[ii, 1], Carbonyl_Gaussians[ii, 2]), 
+                self.axes[1].plot(Xgaussian, gaussian_bell(Xgaussian, self.Carbonyl_Gaussians[ii, 0], 
+                                                           self.Carbonyl_Gaussians[ii, 1], 
+                                                           self.Carbonyl_Gaussians[ii, 2]), 
                                 ls='--', lw=0.5, color='r', label='Fitted Gaussians')
             else:
-                self.axes[1].plot(Xgaussian, gaussian_bell(Xgaussian, Carbonyl_Gaussians[ii, 0], 
-                                                        Carbonyl_Gaussians[ii, 1], Carbonyl_Gaussians[ii, 2]), 
+                self.axes[1].plot(Xgaussian, gaussian_bell(Xgaussian, self.Carbonyl_Gaussians[ii, 0], 
+                                                           self.Carbonyl_Gaussians[ii, 1], 
+                                                           self.Carbonyl_Gaussians[ii, 2]), 
                                 ls='--', lw=0.5, color='r')
         self.axes[1].legend()
         self.axes[1].invert_xaxis()
@@ -459,15 +542,17 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.axes[2].fill_between(self.XS[self.SIndex2], self.YS[self.SIndex2], 0, color='y', alpha=0.2, 
                                   label='Sulfoxide Area')
         Xgaussian = np.linspace(940, 1100, num=1000)
-        for ii in range(Sulfoxide_Gaussians.shape[0]):
+        for ii in range(self.Sulfoxide_Gaussians.shape[0]):
             if ii == 0:
-                self.axes[2].plot(Xgaussian, gaussian_bell(Xgaussian, Sulfoxide_Gaussians[ii, 0], 
-                                                        Sulfoxide_Gaussians[ii, 1], Sulfoxide_Gaussians[ii, 2]), 
-                                ls='--', lw=0.5, color='r', label='Fitted Gaussians')
+                self.axes[2].plot(Xgaussian, gaussian_bell(Xgaussian, self.Sulfoxide_Gaussians[ii, 0], 
+                                                           self.Sulfoxide_Gaussians[ii, 1], 
+                                                           self.Sulfoxide_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r', label='Fitted Gaussians')
             else:
-                self.axes[2].plot(Xgaussian, gaussian_bell(Xgaussian, Sulfoxide_Gaussians[ii, 0], 
-                                                        Sulfoxide_Gaussians[ii, 1], Sulfoxide_Gaussians[ii, 2]), 
-                                ls='--', lw=0.5, color='r')
+                self.axes[2].plot(Xgaussian, gaussian_bell(Xgaussian, self.Sulfoxide_Gaussians[ii, 0], 
+                                                           self.Sulfoxide_Gaussians[ii, 1], 
+                                                           self.Sulfoxide_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r')
         self.axes[2].legend()
         self.axes[2].invert_xaxis()
         # For Aliphatic plot
@@ -482,15 +567,17 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.axes[3].fill_between(self.XA[self.AIndex2], self.YA[self.AIndex2], 0, color='g', alpha=0.2, 
                                   label='Aliphatic Area')
         Xgaussian = np.linspace(1300, 1600, num=1000)
-        for ii in range(Aliphatic_Gaussians.shape[0]):
+        for ii in range(self.Aliphatic_Gaussians.shape[0]):
             if ii == 0:
-                self.axes[3].plot(Xgaussian, gaussian_bell(Xgaussian, Aliphatic_Gaussians[ii, 0], 
-                                                        Aliphatic_Gaussians[ii, 1], Aliphatic_Gaussians[ii, 2]), 
-                                ls='--', lw=0.5, color='r', label='Fitted Gaussians')
+                self.axes[3].plot(Xgaussian, gaussian_bell(Xgaussian, self.Aliphatic_Gaussians[ii, 0], 
+                                                           self.Aliphatic_Gaussians[ii, 1], 
+                                                           self.Aliphatic_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r', label='Fitted Gaussians')
             else:
-                self.axes[3].plot(Xgaussian, gaussian_bell(Xgaussian, Aliphatic_Gaussians[ii, 0], 
-                                                        Aliphatic_Gaussians[ii, 1], Aliphatic_Gaussians[ii, 2]), 
-                                ls='--', lw=0.5, color='r')
+                self.axes[3].plot(Xgaussian, gaussian_bell(Xgaussian, self.Aliphatic_Gaussians[ii, 0], 
+                                                           self.Aliphatic_Gaussians[ii, 1], 
+                                                           self.Aliphatic_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r')
         self.axes[3].legend()
         self.axes[3].invert_xaxis()
         # Redraw the canvas
@@ -664,14 +751,14 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         Xbinary, Xshape, Xdtype = Array_to_Binary(self.X)
         Ybinary, Yshape, Ydtype = Array_to_Binary(self.Y)
         # Convert Arrays to binary.
-        Carr, Cshape, Ctype = Array_to_Binary(self.GaussianList[self.Index_C, :])
-        Sarr, Sshape, Stype = Array_to_Binary(self.GaussianList[self.Index_S, :])
-        Aarr, Ashape, Atype = Array_to_Binary(self.GaussianList[self.Index_A, :])
+        Carr, Cshape, Ctype = Array_to_Binary(self.Carbonyl_Gaussians)
+        Sarr, Sshape, Stype = Array_to_Binary(self.Sulfoxide_Gaussians)
+        Aarr, Ashape, Atype = Array_to_Binary(self.Aliphatic_Gaussians)
         Garr, Gshape, Gtype = Array_to_Binary(self.GaussianList)
         # Recalculate the ICO and ISO indices. 
-        CArea = (self.GaussianList[self.Index_C, :][:, 2] * np.sqrt(2 * np.pi) * np.abs(self.GaussianList[self.Index_C, :][:, 1])).sum()
-        SArea = (self.GaussianList[self.Index_S, :][:, 2] * np.sqrt(2 * np.pi) * np.abs(self.GaussianList[self.Index_S, :][:, 1])).sum()
-        AArea = (self.GaussianList[self.Index_A, :][:, 2] * np.sqrt(2 * np.pi) * np.abs(self.GaussianList[self.Index_A, :][:, 1])).sum()
+        CArea = (self.Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Carbonyl_Gaussians[:, 1])).sum()
+        SArea = (self.Sulfoxide_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Sulfoxide_Gaussians[:, 1])).sum()
+        AArea = (self.Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Aliphatic_Gaussians[:, 1])).sum()
         Decon_ICO = CArea / AArea
         Decon_ISO = SArea / AArea
         Update_Row_in_Database(self.conn, self.cursor, self.shared_data.data, {
@@ -694,7 +781,10 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             "Decon_Aliphatic": Aarr, "Decon_Aliphatic_shape": Ashape, "Decon_Aliphatic_dtype": Atype, 
             "Decon_GaussianList": Garr, "Decon_GaussianList_shape": Gshape, "Decon_GaussianList_dtype": Gtype, 
             "Decon_ICO": -1.0, "Decon_ISO": -1.0,
-            "IsOutlier": 1})
+            "IsOutlier": 1, 
+            "ALS_Lambda": self.ALSLambda, "ALS_Ratio": self.ALSRatio, "ALS_NumIter": self.ALSNumIter,
+            "Normalization_Method": self.NormalizationMethod.split(" (4")[0].replace(' ', '_'), 
+            "Normalization_Coeff": self.Normalization_Coeff})
         # --------------------------------------------------------------------------------------------------------------
         # Return to the stack widget 2. 
         self.stack.setCurrentIndex(1)
@@ -752,14 +842,14 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             XPeak = np.array(XPeak)[MaxIndex]
             YPeak = np.array(YPeak)[MaxIndex]
         # Convert Arrays to binary.
-        Carr, Cshape, Ctype = Array_to_Binary(self.GaussianList[self.Index_C, :])
-        Sarr, Sshape, Stype = Array_to_Binary(self.GaussianList[self.Index_S, :])
-        Aarr, Ashape, Atype = Array_to_Binary(self.GaussianList[self.Index_A, :])
+        Carr, Cshape, Ctype = Array_to_Binary(self.Carbonyl_Gaussians)
+        Sarr, Sshape, Stype = Array_to_Binary(self.Sulfoxide_Gaussians)
+        Aarr, Ashape, Atype = Array_to_Binary(self.Aliphatic_Gaussians)
         Garr, Gshape, Gtype = Array_to_Binary(self.GaussianList)
         # Recalculate the ICO and ISO indices. 
-        CArea = (self.GaussianList[self.Index_C, :][:, 2] * np.sqrt(2 * np.pi) * np.abs(self.GaussianList[self.Index_C, :][:, 1])).sum()
-        SArea = (self.GaussianList[self.Index_S, :][:, 2] * np.sqrt(2 * np.pi) * np.abs(self.GaussianList[self.Index_S, :][:, 1])).sum()
-        AArea = (self.GaussianList[self.Index_A, :][:, 2] * np.sqrt(2 * np.pi) * np.abs(self.GaussianList[self.Index_A, :][:, 1])).sum()
+        CArea = (self.Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Carbonyl_Gaussians[:, 1])).sum()
+        SArea = (self.Sulfoxide_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Sulfoxide_Gaussians[:, 1])).sum()
+        AArea = (self.Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Aliphatic_Gaussians[:, 1])).sum()
         Decon_ICO = CArea / AArea
         Decon_ISO = SArea / AArea
         # Append the data to the database. 
@@ -787,7 +877,10 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             "Decon_Aliphatic": Aarr, "Decon_Aliphatic_shape": Ashape, "Decon_Aliphatic_dtype": Atype, 
             "Decon_GaussianList": Garr, "Decon_GaussianList_shape": Gshape, "Decon_GaussianList_dtype": Gtype, 
             "Decon_ICO": Decon_ICO, "Decon_ISO": Decon_ISO,
-            "IsOutlier": 0})
+            "IsOutlier": 0,
+            "ALS_Lambda": self.ALSLambda, "ALS_Ratio": self.ALSRatio, "ALS_NumIter": self.ALSNumIter,
+            "Normalization_Method": self.NormalizationMethod.split(" (4")[0].replace(' ', '_'), 
+            "Normalization_Coeff": self.Normalization_Coeff})
         # --------------------------------------------------------------------------------------------------------------
         # Return to the stack widget 2. 
         self.stack.setCurrentIndex(1)
@@ -853,19 +946,17 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         # Then, find the index of the Carbonyl, Sulfoxide, and Aliphatic peaks. 
         Aliphatic_Gaussians = self.GaussianList[(self.GaussianList[:, 0] < 1525) & (self.GaussianList[:, 0] > 1350), :]
         Aliphatic_Gaussians = Aliphatic_Gaussians[Aliphatic_Gaussians[:, 2].argsort(), :]       # Sort based on Amplitude.
-        Aliphatic_Gaussians = Aliphatic_Gaussians[-2:, :]       # Took only the biggest peaks. 
-        Carbonyl_Gaussians = self.GaussianList[(self.GaussianList[:, 0] < 1720) & (self.GaussianList[:, 0] > 1660), :]
-        Sulfoxide_Gaussian = self.GaussianList[(self.GaussianList[:, 0] < 1070) & (self.GaussianList[:, 0] > 970), :]
-        Index = np.argmin(np.abs(Sulfoxide_Gaussian[:, 0] - 1030))
-        Index2= np.argmax(Sulfoxide_Gaussian[:, 2])
-        Sulfoxide_Gaussian = Sulfoxide_Gaussian[[Index2], :]
-        self.Index_C = [np.where((self.GaussianList == row).all(axis=1))[0][0] for row in Carbonyl_Gaussians]
-        self.Index_S = [np.where((self.GaussianList == row).all(axis=1))[0][0] for row in Sulfoxide_Gaussian]
-        self.Index_A = [np.where((self.GaussianList == row).all(axis=1))[0][0] for row in Aliphatic_Gaussians]
+        self.Aliphatic_Gaussians = Aliphatic_Gaussians[-2:, :]       # Took only the biggest peaks. 
+        self.Carbonyl_Gaussians = self.GaussianList[(self.GaussianList[:, 0] < 1720) & \
+                                                    (self.GaussianList[:, 0] > 1660), :]
+        Sulfoxide_Gaussians = self.GaussianList[(self.GaussianList[:, 0] < 1070) & (self.GaussianList[:, 0] > 970), :]
+        Index = np.argmin(np.abs(Sulfoxide_Gaussians[:, 0] - 1030))
+        Index2= np.argmax(Sulfoxide_Gaussians[:, 2])
+        self.Sulfoxide_Gaussians = Sulfoxide_Gaussians[[Index2], :]
         # Update the areas and indices. 
-        CArea = (Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Carbonyl_Gaussians[:, 1])).sum()
-        SArea = (Sulfoxide_Gaussian[:, 2] * np.sqrt(2 * np.pi) * np.abs(Sulfoxide_Gaussian[:, 1])).sum()
-        AArea = (Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Aliphatic_Gaussians[:, 1])).sum()
+        CArea = (self.Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Carbonyl_Gaussians[:, 1])).sum()
+        SArea = (self.Sulfoxide_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Sulfoxide_Gaussians[:, 1])).sum()
+        AArea = (self.Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Aliphatic_Gaussians[:, 1])).sum()
         # Update the deconvolution information. 
         self.Decon_Label_CArea.setText(f'Carbonyl Area: {CArea:.2f}')
         self.Decon_Label_SArea.setText(f'Sulfoxide Area: {SArea:.2f}')
@@ -1077,6 +1168,203 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
 
         # Return Nothing.
         return
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_UpdatePreprocessing(self):
+        """
+        This function updates the preprocessing procedure. 
+        """
+        # Check the number of iteration. 
+        NumIter = self.LineEdit_ALSNumIter.text()
+        try:
+            NumIter = int(float(NumIter))
+            if NumIter < 100:
+                NumIter = 100
+                self.LineEdit_ALSNumIter.setText("100")
+            elif NumIter > 1000:
+                NumIter = 1000
+                self.LineEdit_ALSNumIter.setText("1000")
+            else:
+                self.LineEdit_ALSNumIter.setText(f"{NumIter}")
+        except Exception as err:
+            QMessageBox.critical(self, "Error in Number of iterations!", err)
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Check the Ratio.
+        Ratio = self.LineEdit_ALSRatio.text()
+        try:
+            Ratio = float(Ratio)
+            if Ratio > 0.5:
+                Ratio = 0.5
+                self.LineEdit_ALSRatio.setText(f'{Ratio:.6e}')
+            elif Ratio < 0.0001:
+                Ratio = 0.0001
+                self.LineEdit_ALSRatio.setText(f'{Ratio:.6e}')
+            else:
+                self.LineEdit_ALSRatio.setText(f'{Ratio:.6e}')
+        except Exception as err:
+            QMessageBox.critical(self, "Error in ALS Ratio!", err)
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Check the Lambda
+        Lambda = self.LineEdit_ALSLambda.text()
+        try:
+            Lambda = float(Lambda)
+            if Lambda > 1e10:
+                Lambda = 1e10
+                self.LineEdit_ALSLambda.setText(f'{Lambda:.3e}')
+            elif Lambda < 10:
+                Lambda = 10
+                self.LineEdit_ALSLambda.setText(f'{Lambda:.3e}')
+            else:
+                self.LineEdit_ALSLambda.setText(f'{Lambda:.3e}')
+        except Exception as err:
+            QMessageBox.critical(self, "Error in ALS Lambda!", err)
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Perform the ALS Smoothing baseline correction and normalization. 
+        data = Baseline_Adjustment_ALS(self.RawData, Lambda, Ratio, NumIter)        # Baseline adjustment.
+        if self.DropDown_NormalizationMethod.currentIndex() == 0:
+            data, NormalizationCoeff = Normalization_Method_A(data)
+        elif self.DropDown_NormalizationMethod.currentIndex() == 1:
+            data, NormalizationCoeff = Normalization_Method_B(data)
+        elif self.DropDown_NormalizationMethod.currentIndex() == 2:
+            data, NormalizationCoeff = Normalization_Method_C(data)
+        elif self.DropDown_NormalizationMethod.currentIndex() == 3:
+            data, NormalizationCoeff = Normalization_Method_D(data)
+        self.Normalization_Coeff = NormalizationCoeff
+        self.ALSLambda = Lambda
+        self.ALSRatio  = Ratio
+        self.ALSNumIter= NumIter
+        self.NormalizationMethod = self.DropDown_NormalizationMethod.currentText()
+        X = data[:, 0].copy()
+        Y = data[:, 1].copy()
+        self.X = X
+        self.Y = Y
+        # --------------------------------------------------------------------------------------------------------------
+        # Re-Run the deconvolution method and get the results. 
+        Deconv = Run_Deconvolution(X, Y)
+        self.Deconv = Deconv.copy()
+        self.Carbonyl_Gaussians  = Deconv['Carbonyl_Gaussians']
+        self.Sulfoxide_Gaussians = Deconv['Sulfoxide_Gaussians']
+        self.Aliphatic_Gaussians = Deconv['Aliphatic_Gaussians']
+        # --------------------------------------------------------------------------------------------------------------
+        # Calculating the areas and ISO, ICO values. 
+        CArea = (self.Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Carbonyl_Gaussians[:, 1])).sum()
+        SArea = (self.Sulfoxide_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Sulfoxide_Gaussians[:, 1])).sum()
+        AArea = (self.Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Aliphatic_Gaussians[:, 1])).sum()
+        ICO = CArea / AArea
+        ISO = SArea / AArea
+        # Update the deconvolution information. 
+        self.Decon_Label_CArea.setText(f'Carbonyl Area: {CArea:.2f}')
+        self.Decon_Label_SArea.setText(f'Sulfoxide Area: {SArea:.2f}')
+        self.Decon_Label_AArea.setText(f'Aliphatic Area: {AArea:.2f}')
+        try:
+            self.Decon_Label_Index.setText(f'ICO: {ICO:.4f}, ISO: {ISO:.4f}')
+        except:
+            self.Decon_Label_Index.setText(f'ICO: None, ISO: None')
+        # --------------------------------------------------------------------------------------------------------------
+        # Plot the data. 
+        # First, clear the plots.
+        for j in range(4):
+            self.axes[j].cla()
+        # Prepare the plots. 
+        Titles = ['Wide range data', 'Carbonyl area', 'Sulfoxide area', 'Aliphatic area']
+        for i in range(4):
+            if i >= 2:
+                self.axes[i].set_xlabel('Wavenumber (1/cm)', fontsize=9, fontweight='bold', color='k')
+            if i in [0, 2]:
+                self.axes[i].set_ylabel('Normalized Absorption', fontsize=9, fontweight='bold', color='k')
+            self.axes[i].set_title(Titles[i], fontsize=11, fontweight='bold', color='k')
+            self.axes[i].grid(which='both', color='gray', alpha=0.1)
+        # First, whole wavenumbers. 
+        self.axes[0].plot(data[:, 0], data[:, 1], color='k', ls='-', label='Processed data')
+        self.axes[0].plot(self.RawData[:, 0], self.RawData[:, 1], color='b', ls='-', lw=0.5, label='raw data')
+        self.axes[0].axvspan(xmin=1620, xmax=1800, alpha=0.1, color='r', label='Carbonyl search area')
+        self.axes[0].axvspan(xmin=970,  xmax=1070, alpha=0.1, color='y', label='Sulfoxide search area')
+        self.axes[0].legend()
+        self.axes[0].set_xlim([2000, 600])
+        # For cabonyl plot.
+        CIndex = np.where((data[:, 0] >= 1600) & (data[:, 0] <= 1800))[0]
+        self.XC = data[CIndex, 0]
+        self.YC = data[CIndex, 1]
+        self.CIndex = CIndex
+        self.XCminIndx = np.where(self.XC >= self.spinboxes[0].value())[0][0]
+        self.XCmaxIndx = np.where(self.XC <= self.spinboxes[1].value())[0][-1]
+        self.XCmin = self.XC[self.XCminIndx]
+        self.XCmax = self.XC[self.XCmaxIndx]
+        self.CIndex2 = np.arange(self.XCminIndx, self.XCmaxIndx + 1)
+        self.axes[1].plot(data[CIndex, 0], data[CIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[1].fill_between(self.XC[self.CIndex2], self.YC[self.CIndex2], 0, color='r', alpha=0.2, 
+                                  label='Carbonyl Area')
+        Xgaussian = np.linspace(1600, 1800, num=1000)
+        for ii in range(self.Carbonyl_Gaussians.shape[0]):
+            if ii == 0:
+                self.axes[1].plot(Xgaussian, gaussian_bell(Xgaussian, self.Carbonyl_Gaussians[ii, 0], 
+                                                           self.Carbonyl_Gaussians[ii, 1], 
+                                                           self.Carbonyl_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r', label='Fitted Gaussians')
+            else:
+                self.axes[1].plot(Xgaussian, gaussian_bell(Xgaussian, self.Carbonyl_Gaussians[ii, 0], 
+                                                           self.Carbonyl_Gaussians[ii, 1], 
+                                                           self.Carbonyl_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r')
+        self.axes[1].legend()
+        self.axes[1].invert_xaxis()
+        # For Sulfoxide plot
+        SIndex = np.where((data[:, 0] >= 940) & (data[:, 0] <= 1100))[0]
+        self.XS = data[SIndex, 0]
+        self.YS = data[SIndex, 1]
+        self.SIndex = SIndex
+        self.XSminIndx = np.where(self.XS >= self.spinboxes[2].value())[0][0]
+        self.XSmaxIndx = np.where(self.XS <= self.spinboxes[3].value())[0][-1]
+        self.XSmin = self.XS[self.XSminIndx]
+        self.XSmax = self.XS[self.XSmaxIndx]
+        self.SIndex2 = np.arange(self.XSminIndx, self.XSmaxIndx + 1)
+        self.axes[2].plot(data[SIndex, 0], data[SIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[2].fill_between(self.XS[self.SIndex2], self.YS[self.SIndex2], 0, color='y', alpha=0.2, 
+                                  label='Sulfoxide Area')
+        Xgaussian = np.linspace(940, 1100, num=1000)
+        for ii in range(self.Sulfoxide_Gaussians.shape[0]):
+            if ii == 0:
+                self.axes[2].plot(Xgaussian, gaussian_bell(Xgaussian, self.Sulfoxide_Gaussians[ii, 0], 
+                                                           self.Sulfoxide_Gaussians[ii, 1], 
+                                                           self.Sulfoxide_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r', label='Fitted Gaussians')
+            else:
+                self.axes[2].plot(Xgaussian, gaussian_bell(Xgaussian, self.Sulfoxide_Gaussians[ii, 0], 
+                                                           self.Sulfoxide_Gaussians[ii, 1], 
+                                                           self.Sulfoxide_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r')
+        self.axes[2].legend()
+        self.axes[2].invert_xaxis()
+        # For Aliphatic plot
+        AIndex = np.where((data[:, 0] >= 1300) & (data[:, 0] <= 1600))[0]
+        self.XA = data[AIndex, 0]
+        self.YA = data[AIndex, 1]
+        self.AIndex = AIndex
+        self.XAminIndx = np.where(self.XA >= self.spinboxes[4].value())[0][0]
+        self.XAmaxIndx = np.where(self.XA <= self.spinboxes[5].value())[0][-1]
+        self.XAmin = self.XA[self.XAminIndx]
+        self.XAmax = self.XA[self.XAmaxIndx]
+        self.AIndex2 = np.arange(self.XAminIndx, self.XAmaxIndx + 1)
+        self.axes[3].plot(data[AIndex, 0], data[AIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[3].fill_between(self.XA[self.AIndex2], self.YA[self.AIndex2], 0, color='g', alpha=0.2, 
+                                  label='Aliphatic Area')
+        Xgaussian = np.linspace(1300, 1600, num=1000)
+        for ii in range(self.Aliphatic_Gaussians.shape[0]):
+            if ii == 0:
+                self.axes[3].plot(Xgaussian, gaussian_bell(Xgaussian, self.Aliphatic_Gaussians[ii, 0], 
+                                                        self.Aliphatic_Gaussians[ii, 1], self.Aliphatic_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r', label='Fitted Gaussians')
+            else:
+                self.axes[3].plot(Xgaussian, gaussian_bell(Xgaussian, self.Aliphatic_Gaussians[ii, 0], 
+                                                           self.Aliphatic_Gaussians[ii, 1], 
+                                                           self.Aliphatic_Gaussians[ii, 2]), 
+                                  ls='--', lw=0.5, color='r')
+        self.axes[3].legend()
+        self.axes[3].invert_xaxis()
+        # Redraw the canvas
+        self.canvas.draw()
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

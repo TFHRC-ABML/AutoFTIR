@@ -13,14 +13,14 @@ import pandas as pd
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QSpinBox, QDoubleSpinBox, QLabel, \
     QPushButton, QWidget, QGridLayout, QFormLayout, QLineEdit, QFileDialog, QMessageBox, QGroupBox, QProgressBar, \
     QPlainTextEdit, QStackedWidget, QCheckBox, QDialog, QComboBox
-from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QIntValidator
+from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QIntValidator, QDoubleValidator
 from PyQt5.QtCore import Qt, QRegExp
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from scripts.Sub02_CreateNewSQLTable import Get_DB_SummaryData, Append_to_Database, Get_Info_From_Name
 from scripts.Sub04_FTIR_Analysis_Functions import Read_FTIR_Data, Baseline_Adjustment_ALS, Normalization_Method_B, \
     Calc_Aliphatic_Area, Calc_Carbonyl_Area, Calc_Sulfoxide_Area, Array_to_Binary, Binary_to_Array, Find_Peaks, \
-    FindRepresentativeRows
+    FindRepresentativeRows, Normalization_Method_A, Normalization_Method_C, Normalization_Method_D
 from scripts.Sub05_ReviewPage import DB_ReviewPage
 from scripts.Sub06_FTIR_RevisePage import Revise_FTIR_AnalysisPage
 from scripts.Sub07_Deconvolution_Analysis import Run_Deconvolution, gaussian_bell
@@ -143,7 +143,71 @@ class MainPage(QMainWindow):
         Section01_Layout.addLayout(FormLayout_Right)
         Section01_Layout.addWidget(self.Button_Sync, alignment=Qt.AlignHCenter | Qt.AlignTop)
         Section01.setLayout(Section01_Layout)
-        LeftLayout.addWidget(Section01, 10)
+        Left_Top_Layout = QHBoxLayout()
+        Left_Top_Layout.addWidget(Section01, 50)
+        # --------------------------------------------------------------------------------------------------------------
+        # Section 1-2: Preprocessing options. 
+        Section12 = QGroupBox("Pre-Processing Options")
+        Section12_Layout = QHBoxLayout()
+        FormLayout12_Left  = QFormLayout()            # Define a form layout for the left side.
+        FormLayout12_Right = QFormLayout()            # Define a form layout for the right side. 
+        # Create the left side labels in Section 01.
+        Label12_01 = QLabel("ALS Lambda:".ljust(13))
+        self.LineEdit_ALSLambda = QLineEdit()
+        self.LineEdit_ALSLambda.setPlaceholderText("Enter Lambda parameter ...")
+        self.LineEdit_ALSLambda.setReadOnly(False)
+        LambdaValidator = QDoubleValidator(10, 10000000000, 3)
+        LambdaValidator.setNotation(QDoubleValidator.ScientificNotation)
+        self.LineEdit_ALSLambda.setValidator(LambdaValidator)
+        self.LineEdit_ALSLambda.setText("1e6")
+        Label12_02 = QLabel("ALS Ratio:".ljust(13))
+        self.LineEdit_ALSRatio = QLineEdit()
+        self.LineEdit_ALSRatio.setPlaceholderText("Enter ratio parameter ...")
+        self.LineEdit_ALSRatio.setReadOnly(False)
+        RatioValidator = QDoubleValidator(0.0001, 0.5, 6)
+        RatioValidator.setNotation(QDoubleValidator.ScientificNotation)
+        self.LineEdit_ALSRatio.setValidator(RatioValidator)
+        self.LineEdit_ALSRatio.setText("1e-1")
+        Label12_03 = QLabel("ALS Num Iterations:".ljust(22))
+        self.LineEdit_ALSNumIter = QLineEdit()
+        self.LineEdit_ALSNumIter.setPlaceholderText("Enter number of iterations ...")
+        self.LineEdit_ALSNumIter.setReadOnly(False)
+        NumIterValidator = QIntValidator(100, 1000)
+        self.LineEdit_ALSNumIter.setValidator(NumIterValidator)
+        Label12_04 = QLabel("Normalization Method:".ljust(22))
+        self.DropDown_NormalizationMethod = QComboBox()
+        self.DropDown_NormalizationMethod.addItems(["Method A (400 to 4000 cm-1)", 
+                                                    "Method B (400 to 1800 cm-1)", 
+                                                    "Method C (400 to 4000 cm-1)",
+                                                    "Method D (400 to 1800 cm-1)"])
+        self.DropDown_NormalizationMethod.setCurrentIndex(1)
+        # Replotting button.
+        self.Button_UpdatePreprocess = QPushButton("Update\nRe-Plot")
+        self.Button_UpdatePreprocess.setFont(QFont("Arial", 8))
+        self.Button_UpdatePreprocess.clicked.connect(self.Function_Button_UpdatePreprocessing)
+        self.Button_UpdatePreprocess.setFixedSize(70, 50)
+        self.Button_UpdatePreprocess.setStyleSheet(
+        """
+        QPushButton:hover {background-color: lightgray;}
+        QPushButton:pressed {background-color: gray;}
+        """)
+        # Make everything disable. 
+        self.LineEdit_ALSLambda.setEnabled(False)
+        self.LineEdit_ALSRatio.setEnabled(False)
+        self.LineEdit_ALSNumIter.setEnabled(False)
+        self.DropDown_NormalizationMethod.setEnabled(False)
+        self.Button_UpdatePreprocess.setEnabled(False)
+        # Place the labels in the GUI.
+        FormLayout12_Left.addRow(Label12_01, self.LineEdit_ALSLambda)
+        FormLayout12_Left.addRow(Label12_02, self.LineEdit_ALSRatio)
+        FormLayout12_Right.addRow(Label12_03, self.LineEdit_ALSNumIter)
+        FormLayout12_Right.addRow(Label12_04, self.DropDown_NormalizationMethod)
+        Section12_Layout.addLayout(FormLayout12_Left)
+        Section12_Layout.addLayout(FormLayout12_Right)
+        Section12_Layout.addWidget(self.Button_UpdatePreprocess, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        Section12.setLayout(Section12_Layout)
+        Left_Top_Layout.addWidget(Section12, 60)
+        LeftLayout.addLayout(Left_Top_Layout, 10)
         # --------------------------------------------------------------------------------------------------------------
         # Section 2: Matplotlib plots. 
         Section02 = QGroupBox("Plotting Section")
@@ -598,15 +662,19 @@ class MainPage(QMainWindow):
         ISO_tang  = SArea_tang / AArea_tang
         # Save the results to the database. 
         FileName = os.path.basename(self.CurrentFileList[self.CurrentFileIndex])
+        Folder   = os.path.dirname(self.CurrentFileList[self.CurrentFileIndex])
         Bnumber, RepNumber, LabAging = Get_Info_From_Name(FileName)
         Xbinary, Xshape, Xdtype = Array_to_Binary(self.X)
         Ybinary, Yshape, Ydtype = Array_to_Binary(self.Y)
+        Xrawbinary, Xrawshape, Xrawdtype = Array_to_Binary(self.RawData[:, 0])
+        Yrawbinary, Yrawshape, Yrawdtype = Array_to_Binary(self.RawData[:, 1])
         Gbinary, Gshape, Gdtype = Array_to_Binary(np.zeros((0, 3)))
         Cbinary, Cshape, Cdtype = Array_to_Binary(np.zeros((0, 3)))
         Sbinary, Sshape, Sdtype = Array_to_Binary(np.zeros((0, 3)))
         Abinary, Ashape, Adtype = Array_to_Binary(np.zeros((0, 3)))
         Append_to_Database(self.conn, self.cursor, {
-            "Bnumber": Bnumber, "Lab_Aging": LabAging, "RepNumber": RepNumber, "FileName": FileName,
+            "Bnumber": Bnumber, "Lab_Aging": LabAging, "RepNumber": RepNumber, 
+            "FileName": FileName, "FileDirectory": Folder,
             "ICO_Baseline": ICO_base, "ICO_Tangential": ICO_tang,
             "ISO_Baseline": ISO_base, "ISO_Tangential": ISO_tang,
             "Carbonyl_Area_Baseline": CArea_base,  "Carbonyl_Area_Tangential": CArea_tang,
@@ -618,11 +686,15 @@ class MainPage(QMainWindow):
             "Aliphatic_Peak_Absorption_1": -1.0, "Aliphatic_Peak_Absorption_2": -1.0,
             "Wavenumber": Xbinary, "Wavenumber_shape": Xshape, "Wavenumber_dtype": Xdtype,
             "Absorption": Ybinary, "Absorption_shape": Yshape, "Absorption_dtype": Ydtype,
+            "RawWavenumber": Xrawbinary, "RawWavenumber_shape": Xrawshape, "RawWavenumber_dtype": Xrawdtype,
+            "RawAbsorbance": Yrawbinary, "RawAbsorbance_shape": Yrawshape, "RawAbsorbance_dtype": Yrawdtype,
             "Carbonyl_Min_Wavenumber": XCmin,  "Carbonyl_Max_Wavenumber": XCmax,
             "Sulfoxide_Min_Wavenumber": XSmin, "Sulfoxide_Max_Wavenumber": XSmax,
             "Aliphatic_Min_Wavenumber": XAmin, "Aliphatic_Max_Wavenumber": XAmax,
             "Baseline_Adjustment_Method": "ALS Smoothing", 
-            "Normalization_Method": "Method_B", "Normalization_Coeff": self.Normalization_Coeff,
+            "ALS_Lambda": self.ALSLambda, "ALS_Ratio": self.ALSRatio, "ALS_NumIter": self.ALSNumIter,
+            "Normalization_Method": self.NormalizationMethod.split(" (4")[0].replace(' ', '_'), 
+            "Normalization_Coeff": self.Normalization_Coeff,
             "IsOutlier": 1, 
             "Deconv_ICO": -1.0, "Deconv_ISO": -1.0, 
             "Deconv_GaussianList" : Gbinary, "Deconv_GaussianList_shape" : Gshape, "Deconv_GaussianList_dtype" : Gdtype,
@@ -675,9 +747,12 @@ class MainPage(QMainWindow):
         ISO_tang  = SArea_tang / AArea_tang
         # Save the results to the database. 
         FileName = os.path.basename(self.CurrentFileList[self.CurrentFileIndex])
+        Folder   = os.path.dirname(self.CurrentFileList[self.CurrentFileIndex])
         Bnumber, RepNumber, LabAging = Get_Info_From_Name(FileName)
         Xbinary, Xshape, Xdtype = Array_to_Binary(self.X)
         Ybinary, Yshape, Ydtype = Array_to_Binary(self.Y)
+        Xrawbinary, Xrawshape, Xrawdtype = Array_to_Binary(self.RawData[:, 0])
+        Yrawbinary, Yrawshape, Yrawdtype = Array_to_Binary(self.RawData[:, 1])
         Gbinary, Gshape, Gdtype = Array_to_Binary(self.Deconv['Gaussian_List'])
         Cbinary, Cshape, Cdtype = Array_to_Binary(self.Deconv['Carbonyl_Gaussians'])
         Sbinary, Sshape, Sdtype = Array_to_Binary(self.Deconv['Sulfoxide_Gaussians'])
@@ -699,7 +774,8 @@ class MainPage(QMainWindow):
             YPeak = np.array(YPeak)[MaxIndex]
         # Append the data to the database. 
         Append_to_Database(self.conn, self.cursor, {
-            "Bnumber": Bnumber, "Lab_Aging": LabAging, "RepNumber": RepNumber, "FileName": FileName,
+            "Bnumber": Bnumber, "Lab_Aging": LabAging, "RepNumber": RepNumber, 
+            "FileName": FileName, "FileDirectory": Folder,
             "ICO_Baseline": ICO_base, "ICO_Tangential": ICO_tang,
             "ISO_Baseline": ISO_base, "ISO_Tangential": ISO_tang,
             "Carbonyl_Area_Baseline": CArea_base,  "Carbonyl_Area_Tangential": CArea_tang,
@@ -715,11 +791,15 @@ class MainPage(QMainWindow):
             "Aliphatic_Peak_Absorption_2": YPeak[0],
             "Wavenumber": Xbinary, "Wavenumber_shape": Xshape, "Wavenumber_dtype": Xdtype,
             "Absorption": Ybinary, "Absorption_shape": Yshape, "Absorption_dtype": Ydtype,
+            "RawWavenumber": Xrawbinary, "RawWavenumber_shape": Xrawshape, "RawWavenumber_dtype": Xrawdtype,
+            "RawAbsorbance": Yrawbinary, "RawAbsorbance_shape": Yrawshape, "RawAbsorbance_dtype": Yrawdtype,
             "Carbonyl_Min_Wavenumber": XCmin,  "Carbonyl_Max_Wavenumber": XCmax,
             "Sulfoxide_Min_Wavenumber": XSmin, "Sulfoxide_Max_Wavenumber": XSmax,
             "Aliphatic_Min_Wavenumber": XAmin, "Aliphatic_Max_Wavenumber": XAmax,
             "Baseline_Adjustment_Method": "ALS Smoothing", 
-            "Normalization_Method": "Method_B", "Normalization_Coeff": self.Normalization_Coeff,
+            "ALS_Lambda": self.ALSLambda, "ALS_Ratio": self.ALSRatio, "ALS_NumIter": self.ALSNumIter,
+            "Normalization_Method": self.NormalizationMethod.split(" (4")[0].replace(' ', '_'), 
+            "Normalization_Coeff": self.Normalization_Coeff,
             "IsOutlier": 0, 
             "Deconv_ICO": self.Deconv["ICO"], "Deconv_ISO": self.Deconv["ISO"], 
             "Deconv_GaussianList" : Gbinary, "Deconv_GaussianList_shape" : Gshape, "Deconv_GaussianList_dtype" : Gdtype,
@@ -775,6 +855,17 @@ class MainPage(QMainWindow):
             self.Button_AddData.setEnabled(True)
             self.Button_ReviewDB.setEnabled(True)
             self.Button_ExportDB.setEnabled(True)
+            # enable the preprocessing options. 
+            self.LineEdit_ALSLambda.setEnabled(False)
+            self.LineEdit_ALSRatio.setEnabled(False)
+            self.LineEdit_ALSNumIter.setEnabled(False)
+            self.DropDown_NormalizationMethod.setEnabled(False)
+            self.Button_UpdatePreprocess.setEnabled(False)
+            # Reset the values of the preprocessing options. 
+            self.LineEdit_ALSLambda.setText("1e6")
+            self.LineEdit_ALSRatio.setText("1e-1")
+            self.LineEdit_ALSNumIter.setText("150")
+            self.DropDown_NormalizationMethod.setCurrentIndex(1)
             # Return "True".
             return True
         # Otherwise, return False.
@@ -869,13 +960,23 @@ class MainPage(QMainWindow):
             self.NumFilesProgress_bar.setValue(0)                                   # Set progress bar to zero.
             return
         # --------------------------------------------------------------------------------------------------------------
+        # Reset the values of the preprocessing options. 
+        self.LineEdit_ALSLambda.setText("1e6")
+        self.LineEdit_ALSRatio.setText("1e-1")
+        self.LineEdit_ALSNumIter.setText("150")
+        self.DropDown_NormalizationMethod.setCurrentIndex(1)
         # Otherwise, perform the baseline adjustment and normalization.
         data = Baseline_Adjustment_ALS(Data, 1e6, 1e-1, 150)            # Baseline adjustment
         Rawdata = Data.copy()
         data, NormalizationCoeff = Normalization_Method_B(data)         # Normalization method B for now. 
         self.Normalization_Coeff = NormalizationCoeff
+        self.ALSLambda = 1e6
+        self.ALSRatio  = 1e-1
+        self.ALSNumIter= 150
+        self.NormalizationMethod = "Method_B"
         X = data[:, 0]
         Y = data[:, 1] 
+        self.RawData = Rawdata.copy()
         self.X = X
         self.Y = Y
         # Also run the algorithm to get the indices. 
@@ -1041,9 +1142,192 @@ class MainPage(QMainWindow):
         progress = int((self.CurrentFileIndex + 1) / len(self.CurrentFileList) * 100)
         if progress > 100: progress = 100
         self.NumFilesProgress_bar.setValue(progress)
-
+        # enable the preprocessing options. 
+        self.LineEdit_ALSLambda.setEnabled(True)
+        self.LineEdit_ALSRatio.setEnabled(True)
+        self.LineEdit_ALSNumIter.setEnabled(True)
+        self.DropDown_NormalizationMethod.setEnabled(True)
+        self.Button_UpdatePreprocess.setEnabled(True)
         # Return Nothing.
         return
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_UpdatePreprocessing(self):
+        """
+        This function updates the preprocessing procedure. 
+        """
+        # Check the number of iteration. 
+        NumIter = self.LineEdit_ALSNumIter.text()
+        try:
+            NumIter = int(float(NumIter))
+            if NumIter < 100:
+                NumIter = 100
+                self.LineEdit_ALSNumIter.setText("100")
+            elif NumIter > 1000:
+                NumIter = 1000
+                self.LineEdit_ALSNumIter.setText("1000")
+            else:
+                self.LineEdit_ALSNumIter.setText(f"{NumIter}")
+        except Exception as err:
+            QMessageBox.critical(self, "Error in Number of iterations!", err)
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Check the Ratio.
+        Ratio = self.LineEdit_ALSRatio.text()
+        try:
+            Ratio = float(Ratio)
+            if Ratio > 0.5:
+                Ratio = 0.5
+                self.LineEdit_ALSRatio.setText(f'{Ratio:.6e}')
+            elif Ratio < 0.0001:
+                Ratio = 0.0001
+                self.LineEdit_ALSRatio.setText(f'{Ratio:.6e}')
+            else:
+                self.LineEdit_ALSRatio.setText(f'{Ratio:.6e}')
+        except Exception as err:
+            QMessageBox.critical(self, "Error in ALS Ratio!", err)
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Check the Lambda
+        Lambda = self.LineEdit_ALSLambda.text()
+        try:
+            Lambda = float(Lambda)
+            if Lambda > 1e10:
+                Lambda = 1e10
+                self.LineEdit_ALSLambda.setText(f'{Lambda:.3e}')
+            elif Lambda < 10:
+                Lambda = 10
+                self.LineEdit_ALSLambda.setText(f'{Lambda:.3e}')
+            else:
+                self.LineEdit_ALSLambda.setText(f'{Lambda:.3e}')
+        except Exception as err:
+            QMessageBox.critical(self, "Error in ALS Lambda!", err)
+            return
+        # --------------------------------------------------------------------------------------------------------------
+        # Perform the ALS Smoothing baseline correction and normalization. 
+        data = Baseline_Adjustment_ALS(self.RawData, Lambda, Ratio, NumIter)        # Baseline adjustment.
+        if self.DropDown_NormalizationMethod.currentIndex() == 0:
+            data, NormalizationCoeff = Normalization_Method_A(data)
+        elif self.DropDown_NormalizationMethod.currentIndex() == 1:
+            data, NormalizationCoeff = Normalization_Method_B(data)
+        elif self.DropDown_NormalizationMethod.currentIndex() == 2:
+            data, NormalizationCoeff = Normalization_Method_C(data)
+        elif self.DropDown_NormalizationMethod.currentIndex() == 3:
+            data, NormalizationCoeff = Normalization_Method_D(data)
+        self.Normalization_Coeff = NormalizationCoeff
+        self.ALSLambda = Lambda
+        self.ALSRatio  = Ratio
+        self.ALSNumIter= NumIter
+        self.NormalizationMethod = self.DropDown_NormalizationMethod.currentText()
+        X = data[:, 0].copy()
+        Y = data[:, 1].copy()
+        self.X = X
+        self.Y = Y
+        # --------------------------------------------------------------------------------------------------------------
+        # Re-Run the deconvolution method and get the results. 
+        Deconv = Run_Deconvolution(X, Y)
+        self.Deconv = Deconv.copy()
+        Carbonyl_Gaussians = Deconv['Carbonyl_Gaussians']
+        Sulfoxide_Gaussians = Deconv['Sulfoxide_Gaussians']
+        Aliphatic_Gaussians = Deconv['Aliphatic_Gaussians']
+        # --------------------------------------------------------------------------------------------------------------
+        # Plot the data. 
+        # First, clear the plots.
+        for j in range(4):
+            self.axes[j].cla()
+        # Prepare the plots. 
+        Titles = ['Wide range data', 'Carbonyl area', 'Sulfoxide area', 'Aliphatic area']
+        for i in range(4):
+            if i >= 2:
+                self.axes[i].set_xlabel('Wavenumber (1/cm)', fontsize=9, fontweight='bold', color='k')
+            if i in [0, 2]:
+                self.axes[i].set_ylabel('Normalized Absorption', fontsize=9, fontweight='bold', color='k')
+            self.axes[i].set_title(Titles[i], fontsize=11, fontweight='bold', color='k')
+            self.axes[i].grid(which='both', color='gray', alpha=0.1)
+        # First, whole wavenumbers. 
+        self.axes[0].plot(data[:, 0], data[:, 1], color='k', ls='-', label='Processed data')
+        self.axes[0].plot(self.RawData[:, 0], self.RawData[:, 1], color='b', ls='-', lw=0.5, label='raw data')
+        self.axes[0].axvspan(xmin=1620, xmax=1800, alpha=0.1, color='r', label='Carbonyl search area')
+        self.axes[0].axvspan(xmin=970,  xmax=1070, alpha=0.1, color='y', label='Sulfoxide search area')
+        self.axes[0].legend()
+        self.axes[0].set_xlim([2000, 600])
+        # For cabonyl plot.
+        CIndex = np.where((data[:, 0] >= 1600) & (data[:, 0] <= 1800))[0]
+        self.XC = data[CIndex, 0]
+        self.YC = data[CIndex, 1]
+        self.CIndex = CIndex
+        self.XCminIndx = np.where(self.XC >= self.spinboxes[0].value())[0][0]
+        self.XCmaxIndx = np.where(self.XC <= self.spinboxes[1].value())[0][-1]
+        self.XCmin = self.XC[self.XCminIndx]
+        self.XCmax = self.XC[self.XCmaxIndx]
+        self.CIndex2 = np.arange(self.XCminIndx, self.XCmaxIndx + 1)
+        self.axes[1].plot(data[CIndex, 0], data[CIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[1].fill_between(self.XC[self.CIndex2], self.YC[self.CIndex2], 0, color='r', alpha=0.2, 
+                                  label='Carbonyl Area')
+        Xgaussian = np.linspace(1600, 1800, num=1000)
+        for ii in range(Carbonyl_Gaussians.shape[0]):
+            if ii == 0:
+                self.axes[1].plot(Xgaussian, gaussian_bell(Xgaussian, Carbonyl_Gaussians[ii, 0], 
+                                                        Carbonyl_Gaussians[ii, 1], Carbonyl_Gaussians[ii, 2]), 
+                                ls='--', lw=0.5, color='r', label='Fitted Gaussians')
+            else:
+                self.axes[1].plot(Xgaussian, gaussian_bell(Xgaussian, Carbonyl_Gaussians[ii, 0], 
+                                                        Carbonyl_Gaussians[ii, 1], Carbonyl_Gaussians[ii, 2]), 
+                                ls='--', lw=0.5, color='r')
+        self.axes[1].legend()
+        self.axes[1].invert_xaxis()
+        # For Sulfoxide plot
+        SIndex = np.where((data[:, 0] >= 940) & (data[:, 0] <= 1100))[0]
+        self.XS = data[SIndex, 0]
+        self.YS = data[SIndex, 1]
+        self.SIndex = SIndex
+        self.XSminIndx = np.where(self.XS >= self.spinboxes[2].value())[0][0]
+        self.XSmaxIndx = np.where(self.XS <= self.spinboxes[3].value())[0][-1]
+        self.XSmin = self.XS[self.XSminIndx]
+        self.XSmax = self.XS[self.XSmaxIndx]
+        self.SIndex2 = np.arange(self.XSminIndx, self.XSmaxIndx + 1)
+        self.axes[2].plot(data[SIndex, 0], data[SIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[2].fill_between(self.XS[self.SIndex2], self.YS[self.SIndex2], 0, color='y', alpha=0.2, 
+                                  label='Sulfoxide Area')
+        Xgaussian = np.linspace(940, 1100, num=1000)
+        for ii in range(Sulfoxide_Gaussians.shape[0]):
+            if ii == 0:
+                self.axes[2].plot(Xgaussian, gaussian_bell(Xgaussian, Sulfoxide_Gaussians[ii, 0], 
+                                                        Sulfoxide_Gaussians[ii, 1], Sulfoxide_Gaussians[ii, 2]), 
+                                ls='--', lw=0.5, color='r', label='Fitted Gaussians')
+            else:
+                self.axes[2].plot(Xgaussian, gaussian_bell(Xgaussian, Sulfoxide_Gaussians[ii, 0], 
+                                                        Sulfoxide_Gaussians[ii, 1], Sulfoxide_Gaussians[ii, 2]), 
+                                ls='--', lw=0.5, color='r')
+        self.axes[2].legend()
+        self.axes[2].invert_xaxis()
+        # For Aliphatic plot
+        AIndex = np.where((data[:, 0] >= 1300) & (data[:, 0] <= 1600))[0]
+        self.XA = data[AIndex, 0]
+        self.YA = data[AIndex, 1]
+        self.AIndex = AIndex
+        self.XAminIndx = np.where(self.XA >= self.spinboxes[4].value())[0][0]
+        self.XAmaxIndx = np.where(self.XA <= self.spinboxes[5].value())[0][-1]
+        self.XAmin = self.XA[self.XAminIndx]
+        self.XAmax = self.XA[self.XAmaxIndx]
+        self.AIndex2 = np.arange(self.XAminIndx, self.XAmaxIndx + 1)
+        self.axes[3].plot(data[AIndex, 0], data[AIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[3].fill_between(self.XA[self.AIndex2], self.YA[self.AIndex2], 0, color='g', alpha=0.2, 
+                                  label='Aliphatic Area')
+        Xgaussian = np.linspace(1300, 1600, num=1000)
+        for ii in range(Aliphatic_Gaussians.shape[0]):
+            if ii == 0:
+                self.axes[3].plot(Xgaussian, gaussian_bell(Xgaussian, Aliphatic_Gaussians[ii, 0], 
+                                                        Aliphatic_Gaussians[ii, 1], Aliphatic_Gaussians[ii, 2]), 
+                                ls='--', lw=0.5, color='r', label='Fitted Gaussians')
+            else:
+                self.axes[3].plot(Xgaussian, gaussian_bell(Xgaussian, Aliphatic_Gaussians[ii, 0], 
+                                                        Aliphatic_Gaussians[ii, 1], Aliphatic_Gaussians[ii, 2]), 
+                                ls='--', lw=0.5, color='r')
+        self.axes[3].legend()
+        self.axes[3].invert_xaxis()
+        # Redraw the canvas
+        self.canvas.draw()
+    # ------------------------------------------------------------------------------------------------------------------
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

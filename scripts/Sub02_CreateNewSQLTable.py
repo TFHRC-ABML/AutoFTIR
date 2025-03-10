@@ -31,6 +31,7 @@ def Create_SQLite3_DB_Connect(path):
         Lab_Aging TEXT,
         RepNumber INTEGER,
         FileName TEXT,
+        FileDirectory TEXT,
         ICO_Baseline REAL,
         ICO_Tangential REAL,
         ISO_Baseline REAL,
@@ -55,6 +56,12 @@ def Create_SQLite3_DB_Connect(path):
         Absorption BOLB,
         Absorption_shape TEXT,
         Absorption_dtype TEXT,
+        RawWavenumber BOLB,
+        RawWavenumber_shape TEXT,
+        RawWavenumber_dtype TEXT,
+        RawAbsorbance BOLB,
+        RawAbsorbance_shape TEXT,
+        RawAbsorbance_dtype TEXT,
         Carbonyl_Min_Wavenumber REAL,
         Carbonyl_Max_Wavenumber REAL,
         Sulfoxide_Min_Wavenumber REAL,
@@ -62,6 +69,9 @@ def Create_SQLite3_DB_Connect(path):
         Aliphatic_Min_Wavenumber REAL,
         Aliphatic_Max_Wavenumber REAL,
         Baseline_Adjustment_Method TEXT,
+        ALS_Lambda REAL,
+        ALS_Ratio REAL, 
+        ALS_NumIter INTEGER,
         Normalization_Method TEXT,
         Normalization_Coeff REAL,
         IsOutlier INTEGER,
@@ -140,7 +150,7 @@ def Append_to_Database(conn, cursor, data):
     # Insert data into the table
     cursor.execute("""
     INSERT INTO FTIR (
-        Bnumber, Lab_Aging, RepNumber, FileName,
+        Bnumber, Lab_Aging, RepNumber, FileName, FileDirectory,
         ICO_Baseline, ICO_Tangential, ISO_Baseline, ISO_Tangential,
         Carbonyl_Area_Baseline, Carbonyl_Area_Tangential, Sulfoxide_Area_Baseline, Sulfoxide_Area_Tangential,
         Aliphatic_Area_Baseline, Aliphatic_Area_Tangential,
@@ -148,19 +158,22 @@ def Append_to_Database(conn, cursor, data):
         Carbonyl_Peak_Absorption, Sulfoxide_Peak_Absorption, Aliphatic_Peak_Absorption_1, Aliphatic_Peak_Absorption_2,
         Wavenumber, Wavenumber_shape, Wavenumber_dtype,
         Absorption, Absorption_shape, Absorption_dtype,
+        RawWavenumber, RawWavenumber_shape, RawWavenumber_dtype,
+        RawAbsorbance, RawAbsorbance_shape, RawAbsorbance_dtype,
         Carbonyl_Min_Wavenumber, Carbonyl_Max_Wavenumber,
         Sulfoxide_Min_Wavenumber, Sulfoxide_Max_Wavenumber,
         Aliphatic_Min_Wavenumber, Aliphatic_Max_Wavenumber,
-        Baseline_Adjustment_Method, Normalization_Method, Normalization_Coeff, IsOutlier, 
+        Baseline_Adjustment_Method, ALS_Lambda, ALS_Ratio, ALS_NumIter,
+        Normalization_Method, Normalization_Coeff, IsOutlier, 
         Deconv_ICO, Deconv_ISO, 
         Deconv_GaussianList,  Deconv_GaussianList_shape,  Deconv_GaussianList_dtype,
         Deconv_CarbonylList,  Deconv_CarbonylList_shape,  Deconv_CarbonylList_dtype, 
         Deconv_SulfoxideList, Deconv_SulfoxideList_shape, Deconv_SulfoxideList_dtype, 
         Deconv_AliphaticList, Deconv_AliphaticList_shape, Deconv_AliphaticList_dtype
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+               ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
     """, (
-        data["Bnumber"], data["Lab_Aging"], data["RepNumber"], data["FileName"],
+        data["Bnumber"], data["Lab_Aging"], data["RepNumber"], data["FileName"], data["FileDirectory"],
         data["ICO_Baseline"], data["ICO_Tangential"], data["ISO_Baseline"], data["ISO_Tangential"],
         data["Carbonyl_Area_Baseline"], data["Carbonyl_Area_Tangential"],
         data["Sulfoxide_Area_Baseline"], data["Sulfoxide_Area_Tangential"],
@@ -171,11 +184,13 @@ def Append_to_Database(conn, cursor, data):
         data["Aliphatic_Peak_Absorption_1"], data["Aliphatic_Peak_Absorption_2"],
         data["Wavenumber"], data["Wavenumber_shape"], data["Wavenumber_dtype"],
         data["Absorption"], data["Absorption_shape"], data["Absorption_dtype"],
+        data["RawWavenumber"], data["RawWavenumber_shape"], data["RawWavenumber_dtype"],
+        data["RawAbsorbance"], data["RawAbsorbance_shape"], data["RawAbsorbance_dtype"],
         data["Carbonyl_Min_Wavenumber"], data["Carbonyl_Max_Wavenumber"],
         data["Sulfoxide_Min_Wavenumber"], data["Sulfoxide_Max_Wavenumber"],
         data["Aliphatic_Min_Wavenumber"], data["Aliphatic_Max_Wavenumber"],
-        data["Baseline_Adjustment_Method"], data["Normalization_Method"],
-        data["Normalization_Coeff"], data["IsOutlier"], 
+        data["Baseline_Adjustment_Method"], data["ALS_Lambda"], data["ALS_Ratio"], data["ALS_NumIter"],
+        data["Normalization_Method"], data["Normalization_Coeff"], data["IsOutlier"], 
         data["Deconv_ICO"], data["Deconv_ISO"],
         data["Deconv_GaussianList"],  data["Deconv_GaussianList_shape"],  data["Deconv_GaussianList_dtype"],
         data["Deconv_CarbonylList"],  data["Deconv_CarbonylList_shape"],  data["Deconv_CarbonylList_dtype"], 
@@ -218,6 +233,9 @@ def Update_Row_in_Database(conn, cursor, idx, data):
          Deconv_AliphaticList = ?, Deconv_AliphaticList_shape = ?, Deconv_AliphaticList_dtype = ?, 
          Deconv_GaussianList = ?, Deconv_GaussianList_shape = ?, Deconv_GaussianList_dtype = ?,
          Deconv_ICO = ?, Deconv_ISO = ?, 
+         ALS_Lambda = ?, ALS_Ratio = ?, ALS_NumIter = ?, Normalization_Method = ?, Normalization_Coeff = ?, 
+         Wavenumber = ?, Wavenumber_shape = ?, Wavenumber_dtype = ?,
+         Absorption = ?, Absorption_shape = ?, Absorption_dtype = ?,
          IsOutlier = ? 
     WHERE id = ?
     """, (
@@ -237,6 +255,10 @@ def Update_Row_in_Database(conn, cursor, idx, data):
         data["Decon_Aliphatic"], data["Decon_Aliphatic_shape"], data["Decon_Aliphatic_dtype"], 
         data["Decon_GaussianList"], data["Decon_GaussianList_shape"], data["Decon_GaussianList_dtype"], 
         data["Decon_ICO"], data["Decon_ISO"], 
+        data["ALS_Lambda"], data["ALS_Ratio"], data["ALS_NumIter"], 
+        data["Normalization_Method"], data["Normalization_Coeff"],
+        data["Wavenumber"], data["Wavenumber_shape"], data["Wavenumber_dtype"],
+        data["Absorption"], data["Absorption_shape"], data["Absorption_dtype"],
         data["IsOutlier"], idx
     ))
 
