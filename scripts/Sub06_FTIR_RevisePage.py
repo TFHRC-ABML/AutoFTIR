@@ -414,7 +414,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.ALS_Lambda     = row[30]
         self.ALS_Ratio      = row[31]
         self.ALS_NumIter    = row[32]
-        Normalization_Method = row[33]
+        self.Normalization_Method = row[33]
         self.Normalization_Coeff = row[34]
         RawX = Binary_to_Array(row[35], row[36], row[37])
         RawY = Binary_to_Array(row[38], row[39], row[40])
@@ -471,13 +471,13 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.LineEdit_ALSLambda.setText(f"{self.ALS_Lambda:.3e}")
         self.LineEdit_ALSRatio.setText(f"{self.ALS_Ratio:.6e}")
         self.LineEdit_ALSNumIter.setText(f"{self.ALS_NumIter}")
-        if 'A' in Normalization_Method:
+        if 'A' in self.Normalization_Method:
             self.DropDown_NormalizationMethod.setCurrentIndex(0)
-        elif 'B' in Normalization_Method:
+        elif 'B' in self.Normalization_Method:
             self.DropDown_NormalizationMethod.setCurrentIndex(1)
-        elif 'C' in Normalization_Method:
+        elif 'C' in self.Normalization_Method:
             self.DropDown_NormalizationMethod.setCurrentIndex(2)
-        elif 'D' in Normalization_Method:
+        elif 'D' in self.Normalization_Method:
             self.DropDown_NormalizationMethod.setCurrentIndex(3)
         self.LineEdit_ALSLambda.setEnabled(True)
         self.LineEdit_ALSRatio.setEnabled(True)
@@ -782,8 +782,8 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             "Decon_GaussianList": Garr, "Decon_GaussianList_shape": Gshape, "Decon_GaussianList_dtype": Gtype, 
             "Decon_ICO": -1.0, "Decon_ISO": -1.0,
             "IsOutlier": 1, 
-            "ALS_Lambda": self.ALSLambda, "ALS_Ratio": self.ALSRatio, "ALS_NumIter": self.ALSNumIter,
-            "Normalization_Method": self.NormalizationMethod.split(" (4")[0].replace(' ', '_'), 
+            "ALS_Lambda": self.ALS_Lambda, "ALS_Ratio": self.ALS_Ratio, "ALS_NumIter": self.ALS_NumIter,
+            "Normalization_Method": self.Normalization_Method.split(" (4")[0].replace(' ', '_'), 
             "Normalization_Coeff": self.Normalization_Coeff})
         # --------------------------------------------------------------------------------------------------------------
         # Return to the stack widget 2. 
@@ -878,8 +878,8 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             "Decon_GaussianList": Garr, "Decon_GaussianList_shape": Gshape, "Decon_GaussianList_dtype": Gtype, 
             "Decon_ICO": Decon_ICO, "Decon_ISO": Decon_ISO,
             "IsOutlier": 0,
-            "ALS_Lambda": self.ALSLambda, "ALS_Ratio": self.ALSRatio, "ALS_NumIter": self.ALSNumIter,
-            "Normalization_Method": self.NormalizationMethod.split(" (4")[0].replace(' ', '_'), 
+            "ALS_Lambda": self.ALS_Lambda, "ALS_Ratio": self.ALS_Ratio, "ALS_NumIter": self.ALS_NumIter,
+            "Normalization_Method": self.Normalization_Method.split(" (4")[0].replace(' ', '_'), 
             "Normalization_Coeff": self.Normalization_Coeff})
         # --------------------------------------------------------------------------------------------------------------
         # Return to the stack widget 2. 
@@ -1232,10 +1232,10 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         elif self.DropDown_NormalizationMethod.currentIndex() == 3:
             data, NormalizationCoeff = Normalization_Method_D(data)
         self.Normalization_Coeff = NormalizationCoeff
-        self.ALSLambda = Lambda
-        self.ALSRatio  = Ratio
-        self.ALSNumIter= NumIter
-        self.NormalizationMethod = self.DropDown_NormalizationMethod.currentText()
+        self.ALS_Lambda = Lambda
+        self.ALS_Ratio  = Ratio
+        self.ALS_NumIter= NumIter
+        self.Normalization_Method = self.DropDown_NormalizationMethod.currentText()
         X = data[:, 0].copy()
         Y = data[:, 1].copy()
         self.X = X
