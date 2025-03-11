@@ -119,7 +119,7 @@ The main page (see [Figure 2](#fig-main-nodata)) appears after loading the datab
 <p align="center"><b>Figure 2:</b> Main Page (No Data Loaded)</p>
 
 
-By selecting each `*.dpt` file, it is loaded into the main page as shown in [Figure 3(#fig-main-data)]. The deconvolution analysis method is ran by default and the results are available at the middle right group box. The peaks for carbonyl, sulfoxide, and aliphatic functional groups were also autmoatically detected and showed as highlighted regions in the corresponding graphs. However, it is noted that this peak recognition algorithms is not fully reliable and the user should trim the peak boundaries using the sping boxes in the right group box in the main page. 
+By selecting each `*.dpt` file, it is loaded into the main page as shown in [Figure 3](#fig-main-data). The deconvolution analysis method is ran by default and the results are available at the middle right group box. The peaks for carbonyl, sulfoxide, and aliphatic functional groups were also autmoatically detected and showed as highlighted regions in the corresponding graphs. However, it is noted that this peak recognition algorithms is not fully reliable and the user should trim the peak boundaries using the sping boxes in the right group box in the main page. Then, the user could accept the analysis results by clicking on "OK" button, mark the analysis results as outlier, or discard the current analysis.
 
 <a id="fig-main-data"></a>
 <p align="center">
@@ -127,9 +127,22 @@ By selecting each `*.dpt` file, it is loaded into the main page as shown in [Fig
 </p>
 <p align="center"><b>Figure 3:</b> Main Page (Data Loaded)</p>
 
-Use the "Add more data to DB" button to select the "*.dpt" files. Each spectrum will be shown and the user can change the Carbonyl, Sulfoxide, and Aliphatic boundaries for the peak recognition analysis methods. The deconvolution analysis method will be already imeplemented. The user can then decide to accept the results or label them as outlier. The results will be stored in the connected database. 
 
-User can use the "Review and Edit DB" button to review all test results in the database, and edit the analysis. The user can also combine all replicates of the same binder spectra and export the results using the "Analyze DB and Export to Excel" button. 
+By clicking on "Review and Edit DB", the user will have access to all test results stored in the database (see [Figure 4](#fig-review)). In this page, the user can filter the stored data based on their B-number and state of laboratory aging. User can also select each row of the data by clicking on any cell, and then use the "Review/Modidy Selected Row" button to review or make changes to the preprocessing and analysis of that specific test data. 
+
+<a id="fig-review"></a>
+<p align="center">
+  <img src="./assets/ReviewPage.png" alt="Figure 4: Review page" width="700">
+</p>
+<p align="center"><b>Figure 4:</b> Review Page</p>
+
+Finally, user can also access the analysis results after combining different replicates by clicking on "Show Analysis Results" button, as shown in [Figure 5](#fig-analysis). It is noted that before using this page, the user should perform this analysis by clicking on "Analyze DB and Export to Excel". The columns representing the COV of each parameter are also colormaps, indicating high COV values, so that the user can perform further quality control checks. 
+
+<a id="fig-analysis"></a>
+<p align="center">
+  <img src="./assets/AnalysisPage.png" alt="Figure 5: Analysis page" width="700">
+</p>
+<p align="center"><b>Figure 5:</b> Analysis Page</p>
 
 ## Acknowledgement ##
 
