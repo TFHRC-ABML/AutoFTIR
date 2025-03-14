@@ -66,7 +66,7 @@ class ScrollableMessageBox(QDialog):
     """
     def __init__(self, text, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("FTIR Analysis Tool - Agreement")
+        self.setWindowTitle("AutoFTIR - Agreement")
         self.resize(700, 500)
         layout = QVBoxLayout(self)
         # Create a scrollable text area
@@ -100,7 +100,7 @@ def Disclaimer():
     This function only provide the disclaimer before running the software. 
     """
     TEXT = """
-    The  FTIR analysis product is disseminated by the Federal Highway Administration (FHWA), U.S. Department of \
+    The AutoFTIR analysis product is disseminated by the Federal Highway Administration (FHWA), U.S. Department of \
 Transportation (USDOT) in the interest of information exchange. The United States Government and analysis product \
 developers assume no liability for its content or use.
     

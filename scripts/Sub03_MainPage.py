@@ -1393,7 +1393,7 @@ class Get_Details_Manually(QDialog):
         # Then, check if the combination of the three is already available in database. 
         self.cursor.execute('SELECT EXISTS(SELECT 1 FROM FTIR WHERE Bnumber = ? AND RepNumber = ? AND Lab_Aging = ?)', 
                             (Bnumber, RepNum, LabAging))
-        Exists = cursor.fetchone()[0]
+        Exists = self.cursor.fetchone()[0]
         if Exists:
             QMessageBox.critical(self, "Data already available!", 
                                      f"The combination of the B-number ({Bnumber}), Repetition number ({RepNum}), " + 
