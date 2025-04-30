@@ -403,9 +403,12 @@ class DB_ReviewPage(QMainWindow):
             for row_idx, row_data in enumerate(Rows):
                 for col_idx, cell_data in enumerate(row_data):
                     if col_idx in [5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38]:
-                        item = QTableWidgetItem(f'{cell_data*100:.1f}%')
-                        ColorNumber = Get_Color_4_COV(cell_data)
-                        item.setBackground(QBrush(QColor(ColorNumber)))
+                        try:
+                            item = QTableWidgetItem(f'{cell_data*100:.1f}%')
+                            ColorNumber = Get_Color_4_COV(cell_data)
+                            item.setBackground(QBrush(QColor(ColorNumber)))
+                        except:
+                            item = QTableWidgetItem('None')
                     elif type(cell_data) == float:
                         item = QTableWidgetItem(f'{cell_data:.4f}')
                     else:

@@ -14,7 +14,7 @@ Authors and Contributors:
 
 This repository contains the official implementation of the **"AutoFTIR"**.
 
-The **AutoFTIR** is a user-friendly Graphical User Interface (GUI) developed in Python to assist pavement engineers in analyzing the results of Fourier Transform Infrared (FTIR) spectroscopy on asphalt binders. The tool offers the following key features:
+The **AutoFTIR** is a user-friendly Graphical User Interface (GUI) developed in Python to assist pavement engineers in analyzing the Fourier Transform Infrared (FTIR) spectra of asphalt binders. The tool offers the following key features:
 
 - **Data Preprocessing**: Process raw FTIR spectra by applying baseline correction using the Asymmetric Least Squares (ALS) Smoothing method, followed by normalization of the largest peak to 0.15 within the wavenumber range of 600 to 1800 cm⁻¹.
 
@@ -88,13 +88,13 @@ python Main_GUI.py
 As an example, a database containing 329 FTIR test results for 54 different asphalt binders under various aging 
 conditions is provided at `./example/PTF5_DB.db`. In this database:
 
-* Each asphalt binder is identified by a B-number (a four-digit identification number).
-* The database includes details of the laboratory aging process and repetition numbers.
-* A column labeled "IsOutlier" tracks data points that are considered outliers, such as noisy measurements or those that deviate from the trends of other replicates.
+* Each asphalt binder is identified by a ID number (a four-digit identification number).
+* The database includes details of the laboratory aging state and number of repetitions.
+* A column labeled "IsOutlier" tracks data points that are considered outliers, such as noisy spectra or those that deviate from the trends of other replicates.
 
-The dataset contains both **Original** asphalt binders sourced from asphalt plants and **Extracted** asphalt binders obtained from various asphalt mixtures with different percentages of RAP content (0%, 20%, and 40%). Additionally, the dataset includes SBS-modified and rejuvenated asphalt binders. Users can either create their own database or load the provided example database to start working with the software.
+The dataset contains both **Original** and **Extracted** asphalt binders. Original asphalt binders were sourced from asphalt plants and producers, while extracted asphalt binders were obtained from various asphalt mixtures, which included varying percentages of RAP content (0%, 20%, and 40% by weight of total mixture). Additionally, the dataset includes SBS-modified and rejuvenated asphalt binders. Users can either create their own database or load the provided example database to start working with the software.
 
-When creating or loading a database, users can add FTIR test results to perform the required analysis. To do so, the FTIR spectrum must be provided as a `*.dpt` file. This file should be a text-based, two-column, comma-delimited format containing:
+When creating or loading a database, users can add FTIR test results to perform the required analysis. To do so, the FTIR spectrum must be provided as a `*.dpt` file. This file must be a text-based, two-column, comma-delimited format containing:
 1. Wavenumbers (in cm⁻¹)
 2. Absorbance values of the asphalt binder samples
 
@@ -102,7 +102,7 @@ The file must cover at least the wavenumber range of 550 to 1850 cm⁻¹. Exampl
 
 ## How to Use ##
 
-Upon running the code, the user should accept the "Terms of Use and Agreement", and then directed to the welcome page (see [Figure 1](#fig-welcome)). Here, user can either create a new database or load one. You may load the `./example/PTF5_DB.pd` database, which was provided with the package. 
+Upon running the code, the user will be prompted to review and accept the "Terms of Use and Agreement", and upon accepting will be directed to the welcome page (see [Figure 1](#fig-welcome)). Here the user can either create a new database or load an existing one. An example database, `./example/PTF5_DB.pd` database, is provided with the package. 
 
 <a id="fig-welcome"></a>
 <p align="center">
@@ -119,7 +119,7 @@ The main page (see [Figure 2](#fig-main-nodata)) appears after loading the datab
 <p align="center"><b>Figure 2:</b> Main Page (No Data Loaded)</p>
 
 
-By selecting each `*.dpt` file, it is loaded into the main page as shown in [Figure 3](#fig-main-data). The deconvolution analysis method is ran by default and the results are available at the middle right group box. The peaks for carbonyl, sulfoxide, and aliphatic functional groups were also autmoatically detected and showed as highlighted regions in the corresponding graphs. However, it is noted that this peak recognition algorithms is not fully reliable and the user should trim the peak boundaries using the sping boxes in the right group box in the main page. Then, the user could accept the analysis results by clicking on "OK" button, mark the analysis results as outlier, or discard the current analysis.
+After selecting a `*.dpt` file(s), it is loaded into the main page as shown in [Figure 3](#fig-main-data). The deconvolution analysis method is run by default and the results are available in the group box shown on the right middle section of [Figure 3](#fig-main-data). The peaks for carbonyl, sulfoxide, and aliphatic functional groups are automatically detected and shown as highlighted regions in the corresponding graphs. However, it is noted that this peak recognition algorithm may not be fully reliable, and the user should trim the peak boundaries as needed using the spin boxes in the right group box in the main page. The user can then either accept the analysis results by clicking on "OK" button, mark the analysis results as outlier, or discard the current analysis.
 
 <a id="fig-main-data"></a>
 <p align="center">
@@ -128,7 +128,7 @@ By selecting each `*.dpt` file, it is loaded into the main page as shown in [Fig
 <p align="center"><b>Figure 3:</b> Main Page (Data Loaded)</p>
 
 
-By clicking on "Review and Edit DB", the user will have access to all test results stored in the database (see [Figure 4](#fig-review)). In this page, the user can filter the stored data based on their B-number and state of laboratory aging. User can also select each row of the data by clicking on any cell, and then use the "Review/Modidy Selected Row" button to review or make changes to the preprocessing and analysis of that specific test data. 
+By clicking on "Review and Edit DB", the user will have access to all test results stored in the database (see [Figure 4](#fig-review)). In this page, the user can filter the stored data based on their ID number and laboratory aging level. User can also select each row of the data by clicking on any cell, and then use the "Review/Modify Selected Row" button to review or make changes to the preprocessing and analysis of that specific test data. 
 
 <a id="fig-review"></a>
 <p align="center">
@@ -136,7 +136,7 @@ By clicking on "Review and Edit DB", the user will have access to all test resul
 </p>
 <p align="center"><b>Figure 4:</b> Review Page</p>
 
-Finally, user can also access the analysis results after combining different replicates by clicking on "Show Analysis Results" button, as shown in [Figure 5](#fig-analysis). It is noted that before using this page, the user should perform this analysis by clicking on "Analyze DB and Export to Excel". The columns representing the COV of each parameter are also colormaps, indicating high COV values, so that the user can perform further quality control checks. 
+From the main page, the user can click on "Analyze DB and Export to Excel" button to combine different replicates and create an Excel export file. In addition, the analysis results are also available by clicking on the "Show Analysis Results" button, as shown in [Figure 5](#fig-analysis). The columns representing the Coefficient of Variation (COV) of each parameter are also colormaps, indicating high COV values, so that the user can perform further quality control checks. 
 
 <a id="fig-analysis"></a>
 <p align="center">
@@ -146,11 +146,11 @@ Finally, user can also access the analysis results after combining different rep
 
 ## Acknowledgement ##
 
-We sincerely thank Bethel La Plana and Steve Portillo for their efforts in preparing aged asphalt binder samples and conducting FTIR testing, Scott Parobeck and Frank Davis for handling asphalt mixtures and extractions, and Adrian Andriescu for their invaluable support throughout the project.
+We extend our sincere gratitude to Bethel La Plana and Steve Portillo for their contributions in preparing aged asphalt binder samples and performing FTIR testing; and to Scott Parobeck and Frank Davis for managing asphalt mixtures and extractions.
 
 ## Citation ##
 
-If you use our code or method in your work, please consider citing the following:
+If you use our code or method in your work, please cite the following:
 
 ```bibtex
 @misc{AbdollahiFTIRAnalysisTool2025,

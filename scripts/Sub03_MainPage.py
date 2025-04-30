@@ -48,7 +48,9 @@ class Main_Window(QMainWindow):
         super().__init__()
         # Creating the main window. 
         self.setWindowTitle(f"AutoFTIR (version 1.0) | Database name: {DB_Name}")
-        self.setFixedSize(1500, 900)
+        # self.setFixedSize(1250, 900)
+        self.resize(1250, 900)
+        self.setMinimumSize(900, 700)
         self.setStyleSheet("background-color: #f0f0f0;")
         # Create shared data object
         self.shared_data = SharedData()
@@ -399,7 +401,7 @@ class MainPage(QMainWindow):
         FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please select new FTIR test result files:', 
                                                    directory='', filter="DPT Files (*.dpt);;All Files (*)")
         self.CurrentFileList = FileList
-        self.CurrentFileIndex= 0
+        self.CurrentFileIndex= -1
         # Check on files that are selected. 
         if len(FileList) == 0:          # Do nothing in case files are NOT selected. 
             return
@@ -411,7 +413,19 @@ class MainPage(QMainWindow):
         self.Button_ReviewDB.setEnabled(False)
         self.Button_ExportDB.setEnabled(False)
         # Call the function to renew the plots.
-        self.Renew_MainPlot_4Next_File()
+        while True:
+            self.CurrentFileIndex += 1
+            Check = self.Check_EndofLoop()
+            if Check:
+                return
+            # ----------------------------------------------------------------------------------------------------------
+            # Update the plots and everything. 
+            try:
+                self.Renew_MainPlot_4Next_File()
+                break
+            except:
+                # print(f'Skipping {self.CurrentFileList[self.CurrentFileIndex]}')
+                continue
     # ------------------------------------------------------------------------------------------------------------------
     def Review_Edit_DB_Function(self):
         self.stack.setCurrentIndex(1)  # Switch to the second page
@@ -708,13 +722,19 @@ class MainPage(QMainWindow):
             "Deconv_AliphaticList": Abinary, "Deconv_AliphaticList_shape": Ashape, "Deconv_AliphaticList_dtype": Adtype })
         # --------------------------------------------------------------------------------------------------------------
         # Update the index and check for end of the process. 
-        self.CurrentFileIndex += 1
-        Check = self.Check_EndofLoop()
-        if Check:
-            return
-        # --------------------------------------------------------------------------------------------------------------
-        # Update the plots and everything. 
-        self.Renew_MainPlot_4Next_File()
+        while True:
+            self.CurrentFileIndex += 1
+            Check = self.Check_EndofLoop()
+            if Check:
+                return
+            # ----------------------------------------------------------------------------------------------------------
+            # Update the plots and everything. 
+            try:
+                self.Renew_MainPlot_4Next_File()
+                break
+            except:
+                # print(f'Skipping {self.CurrentFileList[self.CurrentFileIndex]}')
+                continue
         # Return Nothing.
         return
     # ------------------------------------------------------------------------------------------------------------------
@@ -814,13 +834,19 @@ class MainPage(QMainWindow):
             })
         # --------------------------------------------------------------------------------------------------------------
         # Update the index and check for end of the process. 
-        self.CurrentFileIndex += 1
-        Check = self.Check_EndofLoop()
-        if Check:
-            return
-        # --------------------------------------------------------------------------------------------------------------
-        # Update the plots and everything. 
-        self.Renew_MainPlot_4Next_File()
+        while True:
+            self.CurrentFileIndex += 1
+            Check = self.Check_EndofLoop()
+            if Check:
+                return
+            # ----------------------------------------------------------------------------------------------------------
+            # Update the plots and everything. 
+            try:
+                self.Renew_MainPlot_4Next_File()
+                break
+            except:
+                # print(f'Skipping {self.CurrentFileList[self.CurrentFileIndex]}')
+                continue
         # Return Nothing.
         return
     # ------------------------------------------------------------------------------------------------------------------

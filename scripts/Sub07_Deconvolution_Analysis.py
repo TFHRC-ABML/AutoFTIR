@@ -190,7 +190,8 @@ def Fit_Gaussian_to_Biggest_Peak(X, Y, Gaussians, Xmin=None, Xmax=None):
             break
         if trial == 2:
             print("Three trials didn't work!")
-            return Gaussians, Ycopy
+            raise Exception("Three trials didn't work!")
+            # return Gaussians, Ycopy
         else:
             # try smaller initial guess, maybe converge!
             initial_guess[1] /= 2
@@ -223,6 +224,10 @@ def gaussian_bell(x, mu, sigma, amplitude):
     :param amplitude: Peak hight of the Gaussian function. 
     :return: The calculated absorption values. 
     """
+    try: 
+        a = amplitude * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
+    except:
+        print(mu, sigma, amplitude)
     return amplitude * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 # ======================================================================================================================
 # ======================================================================================================================
