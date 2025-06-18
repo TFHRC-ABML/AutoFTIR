@@ -1,0 +1,54 @@
+name: Fetch Traffic Data
+
+on:
+  schedule:
+    - cron: "0 0 * * *"   # Runs daily at midnight UTC
+  workflow_dispatch:      # Allows manual triggering
+
+jobs:
+  collect-traffic:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check Out the Current Repository
+      - name: Checkout Current Repository
+        uses: actions/checkout@v3
+
+      # Step 2: Fetch Repository Traffic Data
+      - name: Fetch Traffic Data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch views data
+          curl -H "Authorization: token $GITHUB_TOKEN" \
+               https://api.github.com/repos/TFHRC-ABML/AutoFTIR/traffic/views \
+               -o views.json
+
+          # Fetch clones data
+          curl -H "Authorization: token $GITHUB_TOKEN" \
+               https://api.github.com/repos/TFHRC-ABML/AutoFTIR/traffic/clones \
+               -o clones.json
+
+          # Save data with timestamped filenames
+          mkdir -p traffic-data
+          mv views.json traffic-data/views-$(date +%F).json
+          mv clones.json traffic-data/clones-$(date +%F).json
+
+      # Step 3: Push Data to the Private Repository
+      - name: Push Data to Another Repository
+        env:
+          TRAFFIC_DATA_TOKEN: ${{ secrets.TRAFFIC_DATA_TOKEN }}
+        run: |
+          # Clone the target private repository
+          git clone https://x-access-token:${TRAFFIC_DATA_TOKEN}@github.com/TFHRC-ABML/Traffic_Data_Archive.git
+
+          # Copy the new traffic data into the target repository
+          cp -r traffic-data/* Traffic_Data_Archive/
+
+          # Commit and push changes
+          cd Traffic_Data_Archive
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git commit -m "Update traffic data for $(date +%F)" || echo "No changes to commit"
+          git push
