@@ -17,7 +17,7 @@ jobs:
       # Step 2: Fetch Repository Traffic Data
       - name: Fetch Traffic Data
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TRAFFIC_DATA_TOKEN }}
         run: |
           # Fetch views data
           curl -H "Authorization: token $GITHUB_TOKEN" \
