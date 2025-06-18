@@ -43,7 +43,7 @@ jobs:
           git clone https://x-access-token:${TRAFFIC_DATA_TOKEN}@github.com/TFHRC-ABML/Traffic_Data_Archive.git
 
           # Copy the new traffic data into the target repository
-          cp -r traffic-data/* Traffic_Data_Archive/
+          cp -r traffic-data/* Traffic_Data_Archive/AutoFTIR/
 
           # Commit and push changes
           cd Traffic_Data_Archive
