@@ -44,6 +44,12 @@ To run this project, you'll need to have [Conda](https://docs.conda.io/en/latest
 ### Step 1: Install Conda
 Ensure you have Conda installed on your system. You can download and install it from the [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/) website.
 
+**NOTE:** During the installation process, ensure that the Conda path is added to your system environment variables. This step may require administrator rights, and you'll typically have the option to add the path during the installation process. If you miss this step, you can manually add the following three paths to your system's PATH variable.
+
+* `C:\ ...\Anaconda3\`
+* `C:\ ...\Anaconda3\Scripts\`
+* `C:\ ...\Anaconda3\Library\bin`
+
 ---
 
 ### Step 2: Clone the Repository
@@ -51,8 +57,8 @@ Ensure you have Conda installed on your system. You can download and install it 
 Clone this repository to your local machine:
 
 ```bash
-git clone https://github.com/TFHRC-ABML/AutoFTIR.git
-cd FTIR_Analysis_Tool
+git clone https://github.com/TFHRC-ABML/AutoFTIR.git AutoFTIR
+cd AutoFTIR
 ```
 
 ---
