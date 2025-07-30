@@ -1,7 +1,7 @@
-# Title: 
+# Title:
 #
 # Author: Farhad Abdollahi (farhad.abdollahi.ctr@dot.gov)
-# Date: 
+# Date:
 # ======================================================================================================================
 
 # Importing the required libraries.
@@ -27,12 +27,20 @@ def Read_FTIR_Data(Inppath):
     :param Inppath: Path to the input raw file. 
     :return Data: A 2D array with two columns, wavenumber (1/cm) and absorbance. 
     """
-    # The "*.dpt" file is tab delimited file, where first column is wavenumber in 1/cm, and second column is the 
-    #   absorbance. 
-    Data = np.loadtxt(Inppath, delimiter='\t')
+    # The "*.dpt" file is tab delimited file, where first column is wavenumber in 1/cm, and second column is the
+    #   absorbance.
+    try:
+        # First try the tab delimited structure.
+        Data = np.loadtxt(Inppath, delimiter='\t')
+    except:
+        try:
+            # Then, try the comma delimited structure.
+            Data = np.loadtxt(Inppath, delimiter=',')
+        except:
+            pass
     # Sort based on the wavelengths (to avoid problem with interpolations)
     Data = Data[np.argsort(Data[:, 0]), :]
-    # Return the results. 
+    # Return the results.
     return Data
 # ======================================================================================================================
 # ======================================================================================================================
@@ -59,19 +67,20 @@ def Baseline_Adjustment_ALS(Data, Lambda, Ratio, NumIter):
     :param NumIter: Number of iteration, default is 150.
     :return: Updated "Data" array with the adjusted absorbance. 
     """
-    # First calculate the baseline. 
-    Baseline = Calc_Baseline_ALS(Data[:, 1], lam=Lambda, p=Ratio, niter=NumIter)
-    # Calculate the corrected intensities. 
+    # First calculate the baseline.
+    Baseline = Calc_Baseline_ALS(
+        Data[:, 1], lam=Lambda, p=Ratio, niter=NumIter)
+    # Calculate the corrected intensities.
     Data2 = Data.copy()
     Data2[:, 1] = Data2[:, 1] - Baseline
-    # Find the index of data points with negative intensity. 
+    # Find the index of data points with negative intensity.
     Index = np.where(Data2[:, 1] < 0)[0]
     Batches, TempList = [], []
     i = 0
     while True:
         TempList.append(Index[i])
         if Index[i] + 1 != Index[i+1]:
-            if len(TempList) > 3:       # Otherwise, we have noise. 
+            if len(TempList) > 3:       # Otherwise, we have noise.
                 Batches.append(TempList)
             TempList = []
         i += 1                          # Update the indexing.
@@ -84,9 +93,9 @@ def Baseline_Adjustment_ALS(Data, Lambda, Ratio, NumIter):
     for i in range(len(Batches)):
         XPoints.append(X[Batches[i][np.argmin(Y[Batches[i]])]])
     XPoints.append(X[-1])
-    # Perform the linear baseline correction on the ALS Smoothing corrected data. 
+    # Perform the linear baseline correction on the ALS Smoothing corrected data.
     Data3 = Baseline_Adjustment(Data2, XPoints)
-    # Return the results. 
+    # Return the results.
     return Data3
 # ======================================================================================================================
 # ======================================================================================================================
@@ -125,13 +134,14 @@ def Baseline_Adjustment(Data, Base_XPoints):
     :param Base_XPoints: Array of the wavelengths used for baseline adjustment (usually 8 reference wavelengths).
     :param return: the adjusted results as a 2D array of the same shape. 
     """
-    # First, Find the corresponding absorbance for the Baseline lines. 
+    # First, Find the corresponding absorbance for the Baseline lines.
     Base_YPoints = np.interp(Base_XPoints, Data[:, 0], Data[:, 1])
-    # Create the interpolation functions. 
-    Func = interp1d(Base_XPoints, Base_YPoints, kind='linear', fill_value='extrapolate')
-    # Make a copy from the data. 
+    # Create the interpolation functions.
+    Func = interp1d(Base_XPoints, Base_YPoints,
+                    kind='linear', fill_value='extrapolate')
+    # Make a copy from the data.
     Data_Adj = Data.copy()
-    # Perform the baseline adjustment. 
+    # Perform the baseline adjustment.
     Data_Adj[:, 1] = Data[:, 1] - Func(Data[:, 0])
     # Return the results
     return Data_Adj
@@ -149,12 +159,12 @@ def Baseline_Adjustment_Hofko(Data, Range=[2000, 2500]):
     :param Range: A range of the data used for integration, defaults to [2000, 25000]
     :return: the adjusted data. 
     """
-    # Define an objective function which calculates the integral based on the parameter c1. 
+    # Define an objective function which calculates the integral based on the parameter c1.
     Index = np.where((Data[:, 0] >= Range[0]) & (Data[:, 0] <= Range[1]))[0]
-    ObjFunc = lambda c1: np.trapz(x=Data[Index, 0], y=Data[Index, 1] - c1)
-    # Use a simple optimization algorithm to find the correct c1. 
+    def ObjFunc(c1): return np.trapz(x=Data[Index, 0], y=Data[Index, 1] - c1)
+    # Use a simple optimization algorithm to find the correct c1.
     result = root_scalar(ObjFunc, bracket=[-1.0, 1.0], method='brentq')
-    # Return the baseline adjusted spectrum. 
+    # Return the baseline adjusted spectrum.
     Data2 = Data.copy()
     Data2[:, 1] -= result.root
     return Data2
@@ -172,16 +182,16 @@ def Normalization_Method_A(Data):
     intesity.
     :param return: the normalized results as a 2D array of the same shape. 
     """
-    # Find the portion of data falls between 600 to 4000 cm^-1. 
+    # Find the portion of data falls between 600 to 4000 cm^-1.
     Index = np.where((Data[:, 0] <= 4000) & (Data[:, 0] >= 600))[0]
-    # Find the peak. 
+    # Find the peak.
     PeakValue = Data[Index, 1].max()
     # Find the ratio.
     Beta = 0.25 / PeakValue
     # Calculated the normalized results.
     Res = Data.copy()
     Res[:, 1] = Res[:, 1] * Beta
-    # Return the results. 
+    # Return the results.
     return Res, Beta
 # ======================================================================================================================
 # ======================================================================================================================
@@ -197,16 +207,16 @@ def Normalization_Method_B(Data):
     intesity.
     :param return: the normalized results as a 2D array of the same shape. 
     """
-    # Find the portion of data falls between 600 to 4000 cm^-1. 
+    # Find the portion of data falls between 600 to 4000 cm^-1.
     Index = np.where((Data[:, 0] <= 1600) & (Data[:, 0] >= 1300))[0]
-    # Find the peak. 
+    # Find the peak.
     PeakValue = Data[Index, 1].max()
     # Find the ratio.
     Beta = 0.15 / PeakValue
     # Calculated the normalized results.
     Res = Data.copy()
     Res[:, 1] *= Beta
-    # Return the results. 
+    # Return the results.
     return Res, Beta
 # ======================================================================================================================
 # ======================================================================================================================
@@ -222,16 +232,16 @@ def Normalization_Method_C(Data):
     intesity.
     :param return: the normalized results as a 2D array of the same shape. 
     """
-    # Find the portion of data falls between 600 to 4000 cm^-1. 
+    # Find the portion of data falls between 600 to 4000 cm^-1.
     Index = np.where((Data[:, 0] <= 4000) & (Data[:, 0] >= 600))[0]
-    # Calculating the area. 
+    # Calculating the area.
     Area = np.trapz(Data[Index, 1], Data[Index, 0])
     # Calculating the ratio.
     Beta = 50 / Area
     # Calculated the normalized results.
     Res = Data.copy()
     Res[:, 1] *= Beta
-    # Return the results. 
+    # Return the results.
     return Res, Beta
 # ======================================================================================================================
 # ======================================================================================================================
@@ -247,16 +257,16 @@ def Normalization_Method_D(Data):
     intesity.
     :param return: the normalized results as a 2D array of the same shape. 
     """
-    # Find the portion of data falls between 600 to 4000 cm^-1. 
+    # Find the portion of data falls between 600 to 4000 cm^-1.
     Index = np.where((Data[:, 0] <= 1800) & (Data[:, 0] >= 600))[0]
-    # Calculating the area. 
+    # Calculating the area.
     Area = np.trapz(Data[Index, 1], Data[Index, 0])
     # Calculating the ratio.
     Beta = 25 / Area
     # Calculated the normalized results.
     Res = Data.copy()
     Res[:, 1] *= Beta
-    # Return the results. 
+    # Return the results.
     return Res, Beta
 # ======================================================================================================================
 # ======================================================================================================================
@@ -274,32 +284,32 @@ def Calc_ICO_ISO_Indices(Data):
     calculated areas, and datapoints used for calculation. 
     """
 
-    # First calculate the Carbonyl, Sulfoxide, and Aliphatic areas. 
-    Carbonyl  = Calc_Carbonyl_Area(Data)
+    # First calculate the Carbonyl, Sulfoxide, and Aliphatic areas.
+    Carbonyl = Calc_Carbonyl_Area(Data)
     Sulfoxide = Calc_Sulfoxide_Area(Data)
     Aliphatic = Calc_Aliphatic_Area(Data)
-    # Calculate the Indices. 
-    ICO_base  = Carbonyl['Area_Baseline']    / Aliphatic['Area_Baseline']
-    ICO_tang  = Carbonyl['Area_Tangential']  / Aliphatic['Area_Tangential']
-    ISO_base  = Sulfoxide['Area_Baseline']   / Aliphatic['Area_Baseline']
-    ISO_tang  = Sulfoxide['Area_Tangential'] / Aliphatic['Area_Tangential']
-    # Prepare the results for returning. 
+    # Calculate the Indices.
+    ICO_base = Carbonyl['Area_Baseline'] / Aliphatic['Area_Baseline']
+    ICO_tang = Carbonyl['Area_Tangential'] / Aliphatic['Area_Tangential']
+    ISO_base = Sulfoxide['Area_Baseline'] / Aliphatic['Area_Baseline']
+    ISO_tang = Sulfoxide['Area_Tangential'] / Aliphatic['Area_Tangential']
+    # Prepare the results for returning.
     Results = {
-        'ICO_Baseline'  : ICO_base,
+        'ICO_Baseline': ICO_base,
         'ICO_Tangential': ICO_tang,
-        'ISO_Baseline'  : ISO_base,
+        'ISO_Baseline': ISO_base,
         'ISO_Tangential': ISO_tang,
-        'Carbonyl_Area_Baseline'    : Carbonyl['Area_Baseline'],
-        'Carbonyl_Area_Tangential'  : Carbonyl['Area_Tangential'],
-        'Sulfoxide_Area_Baseline'   : Sulfoxide['Area_Baseline'],
-        'Sulfoxide_Area_Tangential' : Sulfoxide['Area_Tangential'],
-        'Aliphatic_Area_Baseline'   : Aliphatic['Area_Baseline'],
-        'Aliphatic_Area_Tangential' : Aliphatic['Area_Tangential'],
-        'Carbonyl_Peak_Wavenumber'  : Carbonyl['XPeak'],
-        'Sulfoxide_Peak_Wavenumber' : Sulfoxide['XPeak'],
+        'Carbonyl_Area_Baseline': Carbonyl['Area_Baseline'],
+        'Carbonyl_Area_Tangential': Carbonyl['Area_Tangential'],
+        'Sulfoxide_Area_Baseline': Sulfoxide['Area_Baseline'],
+        'Sulfoxide_Area_Tangential': Sulfoxide['Area_Tangential'],
+        'Aliphatic_Area_Baseline': Aliphatic['Area_Baseline'],
+        'Aliphatic_Area_Tangential': Aliphatic['Area_Tangential'],
+        'Carbonyl_Peak_Wavenumber': Carbonyl['XPeak'],
+        'Sulfoxide_Peak_Wavenumber': Sulfoxide['XPeak'],
         'Aliphatic_Peak1_Wavenumber': Aliphatic['XPeak'][0],
         'Aliphatic_Peak2_Wavenumber': Aliphatic['XPeak'][1],
-        'Carbonyl_XY' : np.vstack((Carbonyl['Xvalues'], Carbonyl['Yvalues'])),
+        'Carbonyl_XY': np.vstack((Carbonyl['Xvalues'], Carbonyl['Yvalues'])),
         'Sulfoxide_XY': np.vstack((Sulfoxide['Xvalues'], Sulfoxide['Yvalues'])),
         'Aliphatic_XY': np.vstack((Aliphatic['Xvalues'], Aliphatic['Yvalues']))}
     # Return the results.
@@ -325,43 +335,48 @@ def Calc_Aliphatic_Area(Data):
     X = Data[:, 0]
     Y = Data[:, 1]
     # First, find the peak of data around 1680 (1/cm). For this purpose, searching area of 1350 to 1525 cm^-1.
-    XPeak, YPeak, Prominence, XLeft, XRight = Find_Peaks(Data, [1350, 1525], 0.001)
-    # Check if two peaks were found. 
+    XPeak, YPeak, Prominence, XLeft, XRight = Find_Peaks(
+        Data, [1350, 1525], 0.001)
+    # Check if two peaks were found.
     if len(XPeak) < 1:
-        raise Warning('Peak was NOT found in the range of 1350 to 1525 cm^-1 for this binder! Check manually!')
+        raise Warning(
+            'Peak was NOT found in the range of 1350 to 1525 cm^-1 for this binder! Check manually!')
         return 0.0
     elif len(XPeak) > 1:
         # More than two peak were found. Using two close ones as main peaks.
         SortedIndex = np.argsort(YPeak)
-        MaxIndex    = SortedIndex[-2:]      # Get the highwst peaks. 
-        MaxIndex    = MaxIndex[np.argsort(np.array(XPeak)[MaxIndex])]       # Sort based on their location.
-        # Specify the XLeft and XRight. 
-        XLeft  = min(XLeft)
+        MaxIndex = SortedIndex[-2:]      # Get the highwst peaks.
+        # Sort based on their location.
+        MaxIndex = MaxIndex[np.argsort(np.array(XPeak)[MaxIndex])]
+        # Specify the XLeft and XRight.
+        XLeft = min(XLeft)
         XRight = max(XRight)
-        # Fix the Peaks. 
+        # Fix the Peaks.
         XPeak = np.array(XPeak)[MaxIndex]
         YPeak = np.array(YPeak)[MaxIndex]
     # --------------------------------------------------------------------------------------------
-    # Find the boundaries of the peak for calculating the area. 
-    # Step 1: using moving average of span 3. 
+    # Find the boundaries of the peak for calculating the area.
+    # Step 1: using moving average of span 3.
     XLeft, XRight = MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak)
-    # Step 2: Fit the Gaussian normal distribution and try to remove data after and before 5% of peak. 
-    XLeft, XRight = GaussianFit_Bound_Modify_DoublePeak(X, Y, XLeft, XRight, XPeak, YPeak)
-    XLeft, XRight = MinimumCheck_Bound_Modify_DoublePeak(X, Y, XLeft, XRight, XPeak, YPeak)
+    # Step 2: Fit the Gaussian normal distribution and try to remove data after and before 5% of peak.
+    XLeft, XRight = GaussianFit_Bound_Modify_DoublePeak(
+        X, Y, XLeft, XRight, XPeak, YPeak)
+    XLeft, XRight = MinimumCheck_Bound_Modify_DoublePeak(
+        X, Y, XLeft, XRight, XPeak, YPeak)
     XLeft, XRight = MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak)
     # --------------------------------------------------------------------------------------------
-    # Calculating the area. 
+    # Calculating the area.
     Index = np.where((X >= XLeft) & (X <= XRight))[0]
     Area_Base = np.trapz(Y[Index], X[Index])
     # For Tangential, be careful, we got the area connected to the mid value.
     P2PIndex = np.where((X >= XPeak[0]) & (X <= XPeak[1]))[0]
-    Xmid  = X[P2PIndex[np.argmin(Y[P2PIndex])]]
-    Ymid  = Y[P2PIndex[np.argmin(Y[P2PIndex])]]
+    Xmid = X[P2PIndex[np.argmin(Y[P2PIndex])]]
+    Ymid = Y[P2PIndex[np.argmin(Y[P2PIndex])]]
     Area1 = np.abs(X[Index[0]] - Xmid) * 0.5 * (Y[Index[0]] + Ymid)
     Area2 = np.abs(X[Index[1]] - Xmid) * 0.5 * (Y[Index[1]] + Ymid)
     Area_Tang = Area_Base - Area1 - Area2
     # --------------------------------------------------------------------------------------------
-    # # Plot the data for verification purposes. 
+    # # Plot the data for verification purposes.
     # plt.figure()
     # idx = np.where((X >= XLeft - 10) & (X <= XRight + 30))[0]
     # plt.plot(X[idx], Y[idx], 'k-', label='FTIR data')
@@ -369,14 +384,14 @@ def Calc_Aliphatic_Area(Data):
     # plt.plot(X[idx], Y[idx], 'x', label='Data points used')
     # plt.legend()
     # --------------------------------------------------------------------------------------------
-    # Returning the results. 
+    # Returning the results.
     Results = {
         'Area_Baseline': Area_Base,
         'Area_Tangential': Area_Tang,
         'Xvalues': X[Index],
         'Yvalues': Y[Index],
         'XPeak': XPeak}
-    # Return the results. 
+    # Return the results.
     return Results
 # ======================================================================================================================
 # ======================================================================================================================
@@ -398,42 +413,47 @@ def Calc_Sulfoxide_Area(Data):
     X = Data[:, 0]
     Y = Data[:, 1]
     # First, find the peak of data around 1680 (1/cm). For this purpose, searching area of 1620 to 1800 cm^-1.
-    XPeak, YPeak, Prominence, XLeft, XRight = Find_Peaks(Data, [970, 1070], 0.001)
-    # Check if the peak was found. 
+    XPeak, YPeak, Prominence, XLeft, XRight = Find_Peaks(
+        Data, [970, 1070], 0.001)
+    # Check if the peak was found.
     if len(XPeak) < 1:
-        raise Warning('Peak was NOT found in the range of 1620 to 1800 cm^-1 for this binder! Check manually!')
+        raise Warning(
+            'Peak was NOT found in the range of 1620 to 1800 cm^-1 for this binder! Check manually!')
         return np.nan
     elif len(XPeak) > 1:
-        # More than one peak was found. Using only one peak which is closer to 1680 cm^-1. 
+        # More than one peak was found. Using only one peak which is closer to 1680 cm^-1.
         Distance = np.abs(np.array(XPeak) - 1030)
         Index = np.argmin(Distance)
-    else: 
+    else:
         # We found the only peak, which is for carbonyl.
         Index = 0
-    # Get the property of the peak. 
-    XPeak  = XPeak[Index]
-    YPeak  = YPeak[Index]
-    XLeft  = XLeft[Index]
+    # Get the property of the peak.
+    XPeak = XPeak[Index]
+    YPeak = YPeak[Index]
+    XLeft = XLeft[Index]
     XRight = XRight[Index]
     Prominence = Prominence[Index]
     XPeak2Report = XPeak
     # --------------------------------------------------------------------------------------------
-    # Find the boundaries of the peak for calculating the area. 
-    # Step 1: using moving average of span 3. 
+    # Find the boundaries of the peak for calculating the area.
+    # Step 1: using moving average of span 3.
     XLeft, XRight = MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak)
-    # Step 2: Fit the Gaussian normal distribution and try to remove data after and before 5% of peak. 
+    # Step 2: Fit the Gaussian normal distribution and try to remove data after and before 5% of peak.
     XLeft, XRight = GaussianFit_Bound_Modify(X, Y, XLeft, XRight, XPeak, YPeak)
-    XLeft, XRight = MinimumCheck_Bound_Modify(X, Y, XLeft, XRight, XPeak, YPeak)
+    XLeft, XRight = MinimumCheck_Bound_Modify(
+        X, Y, XLeft, XRight, XPeak, YPeak)
     XLeft, XRight = MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak)
     # --------------------------------------------------------------------------------------------
     # Solve the problem with double-peak.
     Index = np.where((X >= XLeft) & (X <= XRight))[0]
-    XX = X[Index]; YY = Y[Index]
-    PeakIndices, PeakProperties = find_peaks(YY, height=0, prominence=(YY.max() - YY.min()) / 10, wlen=200)
+    XX = X[Index]
+    YY = Y[Index]
+    PeakIndices, PeakProperties = find_peaks(
+        YY, height=0, prominence=(YY.max() - YY.min()) / 10, wlen=200)
     if len(PeakIndices) > 1:
         # We have double-peak. Find the closest peak.
         XPeak = XX[PeakIndices]
-        Distance  = np.abs(np.array(XPeak) - 1680)
+        Distance = np.abs(np.array(XPeak) - 1680)
         PeakIndex = np.argmin(Distance)
         # Clean the left side.
         if PeakIndex > 0:
@@ -449,12 +469,13 @@ def Calc_Sulfoxide_Area(Data):
             XRight = XX[BetweenIndex[np.argmin(YY[BetweenIndex])]]
         XLeft, XRight = MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak)
     # --------------------------------------------------------------------------------------------
-    # Calculating the area. 
+    # Calculating the area.
     Index = np.where((X >= XLeft) & (X <= XRight))[0]
     Area_Base = np.trapz(Y[Index], X[Index])
-    Area_Tang = Area_Base - np.abs(X[Index[0]] - X[Index[-1]]) * Y[Index[[0, -1]]].mean()
+    Area_Tang = Area_Base - \
+        np.abs(X[Index[0]] - X[Index[-1]]) * Y[Index[[0, -1]]].mean()
     # --------------------------------------------------------------------------------------------
-    # # Plot the data for verification purposes. 
+    # # Plot the data for verification purposes.
     # plt.figure()
     # idx = np.where((X >= XLeft - 10) & (X <= XRight + 30))[0]
     # plt.plot(X[idx], Y[idx], 'k-', label='FTIR data')
@@ -462,7 +483,7 @@ def Calc_Sulfoxide_Area(Data):
     # plt.plot(X[idx], Y[idx], 'x', label='Data points used')
     # plt.legend()
     # --------------------------------------------------------------------------------------------
-    # Returning the results. 
+    # Returning the results.
     Results = {
         'Area_Baseline': Area_Base,
         'Area_Tangential': Area_Tang,
@@ -490,41 +511,45 @@ def Calc_Carbonyl_Area(Data):
     X = Data[:, 0]
     Y = Data[:, 1]
     # First, find the peak of data around 1680 (1/cm). For this purpose, searching area of 1620 to 1800 cm^-1.
-    XPeak, YPeak, Prominence, XLeft, XRight = Find_Peaks(Data, [1620, 1800], 0.001)
-    # Check if the peak was found. 
+    XPeak, YPeak, Prominence, XLeft, XRight = Find_Peaks(
+        Data, [1620, 1800], 0.001)
+    # Check if the peak was found.
     if len(XPeak) < 1:
-        raise Warning('Peak was NOT found in the range of 1620 to 1800 cm^-1 for this binder! Check manually!')
+        raise Warning(
+            'Peak was NOT found in the range of 1620 to 1800 cm^-1 for this binder! Check manually!')
         return np.nan
     elif len(XPeak) > 1:
-        # More than one peak was found. Using only one peak which is closer to 1680 cm^-1. 
+        # More than one peak was found. Using only one peak which is closer to 1680 cm^-1.
         Distance = np.abs(np.array(XPeak) - 1680)
         Index = np.argmin(Distance)
-    else: 
+    else:
         # We found the only peak, which is for carbonyl.
         Index = 0
-    # Get the property of the peak. 
-    XPeak  = XPeak[Index]
-    YPeak  = YPeak[Index]
-    XLeft  = XLeft[Index]
+    # Get the property of the peak.
+    XPeak = XPeak[Index]
+    YPeak = YPeak[Index]
+    XLeft = XLeft[Index]
     XRight = XRight[Index]
     Prominence = Prominence[Index]
     XPeak2Report = XPeak
     # --------------------------------------------------------------------------------------------
-    # Find the boundaries of the peak for calculating the area. 
-    # Step 1: using moving average of span 3. 
+    # Find the boundaries of the peak for calculating the area.
+    # Step 1: using moving average of span 3.
     XLeft, XRight = MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak)
-    # Step 2: Fit the Gaussian normal distribution and try to remove data after and before 5% of peak. 
+    # Step 2: Fit the Gaussian normal distribution and try to remove data after and before 5% of peak.
     XLeft, XRight = GaussianFit_Bound_Modify(X, Y, XLeft, XRight, XPeak, YPeak)
     XLeft, XRight = MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak)
     # --------------------------------------------------------------------------------------------
     # Solve the problem with double-peak.
     Index = np.where((X >= XLeft) & (X <= XRight))[0]
-    XX = X[Index]; YY = Y[Index]
-    PeakIndices, PeakProperties = find_peaks(YY, height=0, prominence=(YY.max() - YY.min()) / 5, wlen=200)
+    XX = X[Index]
+    YY = Y[Index]
+    PeakIndices, PeakProperties = find_peaks(
+        YY, height=0, prominence=(YY.max() - YY.min()) / 5, wlen=200)
     if len(PeakIndices) > 1:
         # We have double-peak. Find the closest peak.
         XPeak = XX[PeakIndices]
-        Distance  = np.abs(np.array(XPeak) - 1680)
+        Distance = np.abs(np.array(XPeak) - 1680)
         PeakIndex = np.argmin(Distance)
         # Clean the left side.
         if PeakIndex > 0:
@@ -540,12 +565,13 @@ def Calc_Carbonyl_Area(Data):
             XRight = XX[BetweenIndex[np.argmin(YY[BetweenIndex])]]
         XLeft, XRight = MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak)
     # --------------------------------------------------------------------------------------------
-    # Calculating the area. 
+    # Calculating the area.
     Index = np.where((X >= XLeft) & (X <= XRight))[0]
     Area_Base = np.trapz(Y[Index], X[Index])
-    Area_Tang = Area_Base - np.abs(X[Index[0]] - X[Index[-1]]) * Y[Index[[0, -1]]].mean()
+    Area_Tang = Area_Base - \
+        np.abs(X[Index[0]] - X[Index[-1]]) * Y[Index[[0, -1]]].mean()
     # --------------------------------------------------------------------------------------------
-    # # Plot the data for verification purposes. 
+    # # Plot the data for verification purposes.
     # plt.figure()
     # idx = np.where((X >= XLeft - 10) & (X <= XRight + 30))[0]
     # plt.plot(X[idx], Y[idx], 'k-', label='FTIR data')
@@ -553,7 +579,7 @@ def Calc_Carbonyl_Area(Data):
     # plt.plot(X[idx], Y[idx], 'x', label='Data points used')
     # plt.legend()
     # --------------------------------------------------------------------------------------------
-    # Returning the results. 
+    # Returning the results.
     Results = {
         'Area_Baseline': Area_Base,
         'Area_Tangential': Area_Tang,
@@ -581,8 +607,9 @@ def GaussianFit_Bound_Modify(X, Y, XLeft, XRight, XPeak, YPeak):
     :return: The updated lower and upper wavewnumber boundaries (1/cm).
     """
     # Find the data points to fit the Gaussian.
-    Index = np.where((Y <= YPeak) & (Y >= 0.6 * YPeak) & (X >= XLeft) & (X <= XRight))[0]
-    # Exclude points far from the cluster of points. 
+    Index = np.where((Y <= YPeak) & (Y >= 0.6 * YPeak)
+                     & (X >= XLeft) & (X <= XRight))[0]
+    # Exclude points far from the cluster of points.
     XX = X[Index]
     PeakIndx = np.argmin(np.abs(XPeak - XX))
     XDiff = np.diff(XX)
@@ -595,18 +622,19 @@ def GaussianFit_Bound_Modify(X, Y, XLeft, XRight, XPeak, YPeak):
 
     # fit the gaussian.
     InitialGuess = [YPeak, XPeak, 0.5 * (XRight - XLeft)]
-    FitCoeff, Covariance = curve_fit(Gaussian_Function, X[Index], Y[Index], p0=InitialGuess)
+    FitCoeff, Covariance = curve_fit(
+        Gaussian_Function, X[Index], Y[Index], p0=InitialGuess)
     a, Mu, Sigma = FitCoeff
 
     # Specify the boundaries of Gaussian at 5% of its peak, which corresponds to x_bound = Mu +- SQRT(-2*Sigma*Ln(0.05))
-    XLeft_Gaussian  = Mu - np.sqrt(-2 * (Sigma ** 2) * np.log(0.05))
-    XRight_Gaussian = Mu + np.sqrt(-2 * (Sigma ** 2) * np.log(0.05)) 
-    # Check the boundaries. 
+    XLeft_Gaussian = Mu - np.sqrt(-2 * (Sigma ** 2) * np.log(0.05))
+    XRight_Gaussian = Mu + np.sqrt(-2 * (Sigma ** 2) * np.log(0.05))
+    # Check the boundaries.
     if XLeft < XLeft_Gaussian:
         XLeft = XLeft_Gaussian
     if XRight > XRight_Gaussian:
         XRight = XRight_Gaussian
-    # Return the results. 
+    # Return the results.
     return XLeft, XRight
 # ======================================================================================================================
 # ======================================================================================================================
@@ -629,13 +657,14 @@ def GaussianFit_Bound_Modify_DoublePeak(X, Y, XLeft, XRight, XPeak, YPeak):
     :return: The updated lower and upper wavewnumber boundaries (1/cm).
     """
     # First, find the Gaussian for the first peak.
-    # Find the mid point. 
+    # Find the mid point.
     Index = np.where((X >= XPeak[0]) & (X <= XPeak[1]))[0]
-    Xmid  = X[Index[np.argmin(Y[Index])]]
-    Ymid  = Y[Index[np.argmin(Y[Index])]]
-    # Find the index of the points used for gaussian to first peak. 
-    Index = np.where((Y <= YPeak[0]) & (Y >= 0.6 * YPeak[0]) & (X >= XLeft) & (X <= Xmid))[0]
-    # Exclude points far from the cluster of points. 
+    Xmid = X[Index[np.argmin(Y[Index])]]
+    Ymid = Y[Index[np.argmin(Y[Index])]]
+    # Find the index of the points used for gaussian to first peak.
+    Index = np.where((Y <= YPeak[0]) & (
+        Y >= 0.6 * YPeak[0]) & (X >= XLeft) & (X <= Xmid))[0]
+    # Exclude points far from the cluster of points.
     XX = X[Index]
     PeakIndx = np.argmin(np.abs(XPeak[0] - XX))
     XDiff = np.diff(XX)
@@ -647,17 +676,19 @@ def GaussianFit_Bound_Modify_DoublePeak(X, Y, XLeft, XRight, XPeak, YPeak):
             break
     # fit the gaussian.
     InitialGuess = [YPeak[0], XPeak[0], 0.5 * (Xmid - XLeft)]
-    FitCoeff1, _ = curve_fit(Gaussian_Function, X[Index], Y[Index], p0=InitialGuess)
+    FitCoeff1, _ = curve_fit(
+        Gaussian_Function, X[Index], Y[Index], p0=InitialGuess)
     a1, Mu1, Sigma1 = FitCoeff1
     # Specify the boundaries of Gaussian at 5% of its peak, which corresponds to x_bound = Mu +- SQRT(-2*Sigma*Ln(0.05))
-    XLeft_Gaussian  = Mu1 - np.sqrt(-2 * (Sigma1 ** 2) * np.log(0.05))
-    # Check the boundaries. 
+    XLeft_Gaussian = Mu1 - np.sqrt(-2 * (Sigma1 ** 2) * np.log(0.05))
+    # Check the boundaries.
     if XLeft < XLeft_Gaussian:
         XLeft = XLeft_Gaussian
     # ------------------------------------------------------------------------------------------------------------------
-    # Now, check the second peak. 
-    Index = np.where((Y <= YPeak[1]) & (Y >= 0.6 * YPeak[1]) & (Y >= Ymid) & (X >= Xmid) & (X <= XRight))[0]
-    # Exclude points far from the cluster of points. 
+    # Now, check the second peak.
+    Index = np.where((Y <= YPeak[1]) & (
+        Y >= 0.6 * YPeak[1]) & (Y >= Ymid) & (X >= Xmid) & (X <= XRight))[0]
+    # Exclude points far from the cluster of points.
     XX = X[Index]
     PeakIndx = np.argmin(np.abs(XPeak[1] - XX))
     XDiff = np.diff(XX)
@@ -669,14 +700,15 @@ def GaussianFit_Bound_Modify_DoublePeak(X, Y, XLeft, XRight, XPeak, YPeak):
             break
     # fit the gaussian.
     InitialGuess = [YPeak[1], XPeak[1], 0.5 * (Xmid - XLeft)]
-    FitCoeff2, _ = curve_fit(Gaussian_Function, X[Index], Y[Index], p0=InitialGuess)
+    FitCoeff2, _ = curve_fit(
+        Gaussian_Function, X[Index], Y[Index], p0=InitialGuess)
     a2, Mu2, Sigma2 = FitCoeff2
     # Specify the boundaries of Gaussian at 5% of its peak, which corresponds to x_bound = Mu +- SQRT(-2*Sigma*Ln(0.05))
-    XRight_Gaussian = Mu2 + np.sqrt(-2 * (Sigma2 ** 2) * np.log(0.05)) 
-    # Check the boundaries. 
+    XRight_Gaussian = Mu2 + np.sqrt(-2 * (Sigma2 ** 2) * np.log(0.05))
+    # Check the boundaries.
     if XRight > XRight_Gaussian:
         XRight = XRight_Gaussian
-    # Return the results. 
+    # Return the results.
     return XLeft, XRight
 # ======================================================================================================================
 # ======================================================================================================================
@@ -697,20 +729,21 @@ def MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak):
     """
     # Find the index of the data points in the range of [XLeft, XRight].
     Index = np.where((X >= XLeft) & (X <= XRight))[0]
-    # Define new variables for X- and Y-coordinates. 
+    # Define new variables for X- and Y-coordinates.
     XX = X[Index]
     YY = Y[Index]
-    # First, for the left side, calculating the moving slope and update XLeft with change in moving slope of more than 1. 
+    # First, for the left side, calculating the moving slope and update XLeft with change in moving slope of more than 1.
     MovingSlope = []
     for i in range(3, len(XX)):
         MovingSlope.append(YY[:i].mean())
     MovingSlope = np.abs(np.array(MovingSlope))
     MovingSlope = np.diff(MovingSlope) / MovingSlope[0] * 100   # In percent.
     RemoveIndex = np.where(MovingSlope >= 1)[0]
-    if len(RemoveIndex) > 0: RemoveIndex = RemoveIndex[0]
+    if len(RemoveIndex) > 0:
+        RemoveIndex = RemoveIndex[0]
     if RemoveIndex != 0:
         XLeft = X[Index[RemoveIndex + 2]]
-    # Now, do the same for right side. 
+    # Now, do the same for right side.
     MovingSlope = []
     for i in range(2, len(XX)):
         MovingSlope.append(YY[-i:].mean())
@@ -719,7 +752,7 @@ def MovingAvg_Bound_Modify(X, Y, XLeft, XRight, YPeak):
     RemoveIndex = np.where(MovingSlope >= 1)[0][0]
     if RemoveIndex != 0:
         XRight = X[Index[-(RemoveIndex + 2)]]
-    # Return the results. 
+    # Return the results.
     return XLeft, XRight
 # ======================================================================================================================
 # ======================================================================================================================
@@ -740,14 +773,14 @@ def MinimumCheck_Bound_Modify(X, Y, XLeft, XRight, XPeak, YPeak):
     """
     # Find the index of the data points in the range of [XLeft, XRight].
     Index = np.where((X >= XLeft) & (X <= XRight))[0]
-    # Define new variables for X- and Y-coordinates. 
+    # Define new variables for X- and Y-coordinates.
     XX = X[Index]
     YY = Y[Index]
-    # Check the left side. 
+    # Check the left side.
     LeftIndex = np.where(XX <= XPeak)[0]
     if YY[0] != YY[LeftIndex].min():
         XLeft = XX[LeftIndex[np.argmin(YY[LeftIndex])]]
-    # Check the right side. 
+    # Check the right side.
     RightIndex = np.where(XX >= XPeak)[0]
     if YY[-1] != YY[RightIndex].min():
         XRight = XX[RightIndex[np.argmin(YY[RightIndex])]]
@@ -773,14 +806,14 @@ def MinimumCheck_Bound_Modify_DoublePeak(X, Y, XLeft, XRight, XPeak, YPeak):
     """
     # Find the index of the data points in the range of [XLeft, XRight].
     Index = np.where((X >= XLeft) & (X <= XRight))[0]
-    # Define new variables for X- and Y-coordinates. 
+    # Define new variables for X- and Y-coordinates.
     XX = X[Index]
     YY = Y[Index]
-    # Check the left side. 
+    # Check the left side.
     LeftIndex = np.where(XX <= XPeak[0])[0]
     if YY[0] != YY[LeftIndex].min():
         XLeft = XX[LeftIndex[np.argmin(YY[LeftIndex])]]
-    # Check the right side. 
+    # Check the right side.
     RightIndex = np.where(XX >= XPeak[1])[0]
     if YY[-1] != YY[RightIndex].min():
         XRight = XX[RightIndex[np.argmin(YY[RightIndex])]]
@@ -817,12 +850,14 @@ def Find_Peaks(Data, Range, Prominence=0.001):
     :param Range: A list of minimum and maximum range of wavenumber of interest for each functional group (1/cm).
     :return 
     """
-    # Limiting the data. 
-    Index = np.where((Data[:, 0] >= Range[0] - 100) & (Data[:, 0] <= Range[1] + 100))[0]
+    # Limiting the data.
+    Index = np.where((Data[:, 0] >= Range[0] - 100) &
+                     (Data[:, 0] <= Range[1] + 100))[0]
     X = Data[Index, 0]
     Y = Data[Index, 1]
-    # Finding the peaks in the data. 
-    PeakIndices, PeakProperties = find_peaks(Y, height=0, prominence=Prominence, wlen=200)
+    # Finding the peaks in the data.
+    PeakIndices, PeakProperties = find_peaks(
+        Y, height=0, prominence=Prominence, wlen=200)
     # Filter the peaks in the range of interest.
     XPeakInRange, YPeakInRange, ProminencesInRange, XLeftBoundInRange, XRightBoundInRange = [], [], [], [], []
     for i in range(len(PeakIndices)):
@@ -832,12 +867,11 @@ def Find_Peaks(Data, Range, Prominence=0.001):
             ProminencesInRange.append(PeakProperties['prominences'][i])
             XLeftBoundInRange.append(X[PeakProperties['left_bases'][i]])
             XRightBoundInRange.append(X[PeakProperties['right_bases'][i]])
-    # Return the results. 
-    return XPeakInRange, YPeakInRange, ProminencesInRange, XLeftBoundInRange, XRightBoundInRange 
+    # Return the results.
+    return XPeakInRange, YPeakInRange, ProminencesInRange, XLeftBoundInRange, XRightBoundInRange
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
-
 
 
 def Array_to_Binary(Arr):
@@ -880,7 +914,7 @@ def FindRepresentativeRows(df):
     """
     # Get the ICO values based on baseline method.
     ICO = df['ICO_Baseline'].to_numpy()
-    # Define different combinations of three numbers. 
+    # Define different combinations of three numbers.
     Combs = list(itertools.combinations(range(len(ICO)), 3))
     # Calculate the standard deviations and find the best combination.
     Stds = [ICO[np.array(Combs[i])].std() for i in range(len(Combs))]

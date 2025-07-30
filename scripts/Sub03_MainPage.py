@@ -88,6 +88,7 @@ class MainPage(QMainWindow):
         self.stack = stack
         self.ShowFileExistedError = True
         self.Deconv = {}
+        self.CurBinderInfo = {'Bnumber': -1, 'RepNum': -1, 'LabAging': ''}  # To share binder info between functions.
         self.initUI()
     # ------------------------------------------------------------------------------------------------------------------
     def initUI(self):
@@ -682,7 +683,9 @@ class MainPage(QMainWindow):
         # Save the results to the database. 
         FileName = os.path.basename(self.CurrentFileList[self.CurrentFileIndex])
         Folder   = os.path.dirname(self.CurrentFileList[self.CurrentFileIndex])
-        Bnumber, RepNumber, LabAging = Get_Info_From_Name(FileName)
+        Bnumber  = self.CurBinderInfo['Bnumber']
+        RepNumber= self.CurBinderInfo['RepNum']
+        LabAging = self.CurBinderInfo['LabAging']
         Xbinary, Xshape, Xdtype = Array_to_Binary(self.X)
         Ybinary, Yshape, Ydtype = Array_to_Binary(self.Y)
         Xrawbinary, Xrawshape, Xrawdtype = Array_to_Binary(self.RawData[:, 0])
@@ -773,7 +776,9 @@ class MainPage(QMainWindow):
         # Save the results to the database. 
         FileName = os.path.basename(self.CurrentFileList[self.CurrentFileIndex])
         Folder   = os.path.dirname(self.CurrentFileList[self.CurrentFileIndex])
-        Bnumber, RepNumber, LabAging = Get_Info_From_Name(FileName)
+        Bnumber  = self.CurBinderInfo['Bnumber']
+        RepNumber= self.CurBinderInfo['RepNum']
+        LabAging = self.CurBinderInfo['LabAging']
         Xbinary, Xshape, Xdtype = Array_to_Binary(self.X)
         Ybinary, Yshape, Ydtype = Array_to_Binary(self.Y)
         Xrawbinary, Xrawshape, Xrawdtype = Array_to_Binary(self.RawData[:, 0])
@@ -833,6 +838,8 @@ class MainPage(QMainWindow):
             "Deconv_AliphaticList": Abinary, "Deconv_AliphaticList_shape": Ashape, "Deconv_AliphaticList_dtype": Adtype            
             })
         # --------------------------------------------------------------------------------------------------------------
+        # Reset the binder info. 
+        self.CurBinderInfo = {'Bnumber': -1, 'RepNum': -1, 'LabAging': ''}
         # Update the index and check for end of the process. 
         while True:
             self.CurrentFileIndex += 1
@@ -859,18 +866,7 @@ class MainPage(QMainWindow):
             QMessageBox.information(self, "Success", 
                                     f"Loop over {len(self.CurrentFileList)} files has been finished!")
             # Clear the plots.
-            for j in range(4):
-                self.axes[j].cla()
-            Titles = ['Wide range data', 'Carbonyl area', 'Sulfoxide area', 'Aliphatic area']
-            for i in range(4):
-                if i >= 2:
-                    self.axes[i].set_xlabel('Wavenumber (1/cm)', fontsize=9, fontweight='bold', color='k')
-                if i in [0, 2]:
-                    self.axes[i].set_ylabel('Normalized Absorption', fontsize=9, fontweight='bold', color='k')
-                self.axes[i].set_title(Titles[i], fontsize=11, fontweight='bold', color='k')
-                self.axes[i].grid(which='both', color='gray', alpha=0.1)
-            # Refresh the axes. 
-            self.canvas.draw()
+            self.Funtion_Clear_Axes()
             # Disable the buttons.
             self.Button_OK.setEnabled(False)
             self.Button_Outlier.setEnabled(False)
@@ -927,8 +923,9 @@ class MainPage(QMainWindow):
         """
         This function renew and draw the main plot and prepare it for the next analysis.  
         """
+        Data = None                     # reset the "Data" variable. 
+        self.Funtion_Clear_Axes()       # First, clear the plotting axes. 
         # Read the files, until a proper file achieved. 
-        Data = None
         for i in range(self.CurrentFileIndex, len(self.CurrentFileList)):
             self.CurrentFileIndex = i
             # Check if the file is already exist in the database. 
@@ -945,7 +942,7 @@ class MainPage(QMainWindow):
                                     f"Lab aging state, and try to use 'Edit/Modify DB button to edit this results!" + 
                                     f"'\nFile directory: {os.path.dirname(self.CurrentFileList[i])}")
                 continue
-            # Check the file name. 
+            # Check the file name and binder information. 
             Bnumber, Rep, LabAging = Get_Info_From_Name(os.path.basename(self.CurrentFileList[i]))
             if Bnumber == None:
                 # Ask user for input. 
@@ -962,7 +959,9 @@ class MainPage(QMainWindow):
                                         f"comparible with file name format! Please make sure to follow " +
                                         f"'BXXXX_FTIR_RepY_AGING.dpt' format, as this is the only format acceptable by " +
                                         f"the code!\nFile directory: {os.path.dirname(self.CurrentFileList[i])}")
+                    self.CurBinderInfo = {'Bnumber': -1, 'RepNum': -1, 'LabAging': ''}      # Reset binder info.
                     continue
+            self.CurBinderInfo = {'Bnumber': Bnumber, 'RepNum': Rep, 'LabAging': LabAging}  # Update binder info. 
             # Try reading the input files. 
             try:
                 Data = Read_FTIR_Data(self.CurrentFileList[i])
@@ -980,9 +979,8 @@ class MainPage(QMainWindow):
                                      f"{os.path.dirname(self.CurrentFileList[i])}")
                 continue
         if type(Data) == type(None):
-            # Selected files are not matching the content, reactivate the buttons and free up the variables. 
-            self.Button_AddData.setEnabled(True)
-            self.Button_ReviewDB.setEnabled(True)
+            self.CurrentFileIndex += 1  # Increase the current file index to make sure it is at end of the file list.
+            Check = self.Check_EndofLoop()      # Perform the "Check" to take care of the GUI properties. 
             # self.Button_ExportDB.setEnabled(True)
             self.CurrentFileIndex = 0
             self.CurrentFileList = []
@@ -1050,18 +1048,6 @@ class MainPage(QMainWindow):
         self.Decon_Label_Index.setText(f'ICO: {Deconv["ICO"]:.4f}, ISO: {Deconv["ISO"]:.4f}')
         # --------------------------------------------------------------------------------------------------------------
         # Plot the data. 
-        # First, clear the plots.
-        for j in range(4):
-            self.axes[j].cla()
-        # Prepare the plots. 
-        Titles = ['Wide range data', 'Carbonyl area', 'Sulfoxide area', 'Aliphatic area']
-        for i in range(4):
-            if i >= 2:
-                self.axes[i].set_xlabel('Wavenumber (1/cm)', fontsize=9, fontweight='bold', color='k')
-            if i in [0, 2]:
-                self.axes[i].set_ylabel('Normalized Absorption', fontsize=9, fontweight='bold', color='k')
-            self.axes[i].set_title(Titles[i], fontsize=11, fontweight='bold', color='k')
-            self.axes[i].grid(which='both', color='gray', alpha=0.1)
         # First, whole wavenumbers. 
         self.axes[0].plot(data[:, 0], data[:, 1], color='k', ls='-', label='Processed data')
         self.axes[0].plot(Rawdata[:, 0], Rawdata[:, 1], color='b', ls='-', lw=0.5, label='raw data')
@@ -1262,18 +1248,7 @@ class MainPage(QMainWindow):
         Aliphatic_Gaussians = Deconv['Aliphatic_Gaussians']
         # --------------------------------------------------------------------------------------------------------------
         # Plot the data. 
-        # First, clear the plots.
-        for j in range(4):
-            self.axes[j].cla()
-        # Prepare the plots. 
-        Titles = ['Wide range data', 'Carbonyl area', 'Sulfoxide area', 'Aliphatic area']
-        for i in range(4):
-            if i >= 2:
-                self.axes[i].set_xlabel('Wavenumber (1/cm)', fontsize=9, fontweight='bold', color='k')
-            if i in [0, 2]:
-                self.axes[i].set_ylabel('Normalized Absorption', fontsize=9, fontweight='bold', color='k')
-            self.axes[i].set_title(Titles[i], fontsize=11, fontweight='bold', color='k')
-            self.axes[i].grid(which='both', color='gray', alpha=0.1)
+        self.Funtion_Clear_Axes()       # First, clear the plots.
         # First, whole wavenumbers. 
         self.axes[0].plot(data[:, 0], data[:, 1], color='k', ls='-', label='Processed data')
         self.axes[0].plot(self.RawData[:, 0], self.RawData[:, 1], color='b', ls='-', lw=0.5, label='raw data')
@@ -1359,6 +1334,26 @@ class MainPage(QMainWindow):
         # Redraw the canvas
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
+    def Funtion_Clear_Axes(self):
+        """
+        This function simply clear the axes (four axes in AutoFTIR) and initialize them for plotting the next results.
+        """
+        # First, clear the plots.
+        for j in range(4):
+            self.axes[j].cla()
+        # Prepare the plots. 
+        Titles = ['Wide range data', 'Carbonyl area', 'Sulfoxide area', 'Aliphatic area']
+        for i in range(4):
+            if i >= 2:
+                self.axes[i].set_xlabel('Wavenumber (1/cm)', fontsize=9, fontweight='bold', color='k')
+            if i in [0, 2]:
+                self.axes[i].set_ylabel('Normalized Absorption', fontsize=9, fontweight='bold', color='k')
+            self.axes[i].set_title(Titles[i], fontsize=11, fontweight='bold', color='k')
+            self.axes[i].grid(which='both', color='gray', alpha=0.1)
+        # Redraw the canvas
+        self.canvas.draw()
+        # Return nothing. 
+        return
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
@@ -1376,7 +1371,7 @@ class Get_Details_Manually(QDialog):
         layout = QVBoxLayout()
         # LineEdit fields
         self.LineEdit_Bnumber = QLineEdit(self)
-        self.LineEdit_Bnumber.setPlaceholderText("Enter 4 or 5 digit B-number ...")
+        self.LineEdit_Bnumber.setPlaceholderText("Enter 4 or 5 digit ID-number ...")
         self.LineEdit_Bnumber.setValidator(QIntValidator(1, 99999))
         self.LineEdit_RepNumber = QLineEdit(self)
         self.LineEdit_RepNumber.setPlaceholderText("Enter Repetition number ...")
@@ -1394,7 +1389,7 @@ class Get_Details_Manually(QDialog):
         # Add widgets to layout
         Form = QFormLayout()
         Form.addRow(QLabel('File name:'), QLabel(self.FileName))
-        Form.addRow(QLabel('B-number:'), self.LineEdit_Bnumber)
+        Form.addRow(QLabel('ID-number:'), self.LineEdit_Bnumber)
         Form.addRow(QLabel('Repetition number:'), self.LineEdit_RepNumber)
         Form.addRow(QLabel('Aging Level:'), self.DropDown_Aging)
         layout.addLayout(Form)
