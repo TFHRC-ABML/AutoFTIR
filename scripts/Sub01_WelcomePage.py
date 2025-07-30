@@ -254,7 +254,7 @@ class NewDatabaseInputs(QMainWindow):
             return
         # Second check if the project name is a valid name. 
         FileName = self.Input_DBName.text()
-        if len(FileName) < 4: 
+        if len(FileName) < 3: 
             QMessageBox.warning(self, "Warning", "Database name should contain at least 3 characters!")
             return
         # Printing a success message and save the project locations. 
