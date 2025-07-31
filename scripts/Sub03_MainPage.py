@@ -400,7 +400,8 @@ class MainPage(QMainWindow):
     def Add_More_Data_Function(self):
         # First ask user to select some FTIR test results.
         FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please select new FTIR test result files:', 
-                                                   directory='', filter="DPT Files (*.dpt);;All Files (*)")
+                                                   directory='', 
+                                                   filter="DPT Files (*.dpt);;CSV Files (*.csv);;All Files (*)")
         self.CurrentFileList = FileList
         self.CurrentFileIndex= -1
         # Check on files that are selected. 

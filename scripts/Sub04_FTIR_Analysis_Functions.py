@@ -8,6 +8,7 @@
 import os
 import sys
 import ast
+import csv
 import pickle
 import fnmatch
 import itertools
@@ -27,19 +28,47 @@ def Read_FTIR_Data(Inppath):
     :param Inppath: Path to the input raw file. 
     :return Data: A 2D array with two columns, wavenumber (1/cm) and absorbance. 
     """
-    # The "*.dpt" file is tab delimited file, where first column is wavenumber in 1/cm, and second column is the
-    #   absorbance.
-    try:
-        # First try the tab delimited structure.
-        Data = np.loadtxt(Inppath, delimiter='\t')
-    except:
+    # The "*.dpt" file is tab or comma delimited file, where first column is wavenumber in 1/cm, and second column is 
+    #   the absorbance. First, try the simple tab or comma delimited files. 
+    Data = None
+    for delimiter in ['\t', ',']:
         try:
-            # Then, try the comma delimited structure.
-            Data = np.loadtxt(Inppath, delimiter=',')
-        except:
-            pass
+            Data = np.loadtxt(Inppath, delimiter=delimiter)
+            break
+        except (ValueError, OSError):
+            continue
+    if type(Data) == type(None):
+        # If the file wasn't a simple "*.dpt" file with tab or comma delimited style, search for other options, like the
+        #   sample file I got from Butimar. 
+        if not fnmatch.fnmatch(os.path.basename(Inppath), '*.csv'):     # For non-CSV formats, skip the reading.
+            raise Exception(f'Input file is not readable for AutoFTIR. Please contact the authors to include your file')
+        # Read a sample of input to guess the delimiter. 
+        with open(Inppath, 'r', encoding='utf-8') as f:
+            sample = f.read(2048)       # Read enough to guess
+            sniffer = csv.Sniffer()
+            try:
+                dialect = sniffer.sniff(sample)
+                delimiter = dialect.delimiter
+            except csv.Error:
+                raise ValueError("Could not detect delimiter.")
+        # Read the file again to detect how many rows to skip. 
+        skip_rows = 0
+        with open(Inppath, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    # Try converting to float to detect data line
+                    [float(x) for x in line.strip().split(delimiter)]
+                    break
+                except ValueError:
+                    skip_rows += 1
+        # Finally, read the file and convert to array. 
+        df = pd.read_csv(Inppath, delimiter=delimiter, skiprows=skip_rows, header=None)
+        Data = df.to_numpy()
     # Sort based on the wavelengths (to avoid problem with interpolations)
     Data = Data[np.argsort(Data[:, 0]), :]
+    # Check if the data provided in terms of "percent transmittance".
+    if Data[:, 1].mean() > 20:
+        Data[:, 1] = -np.log10(Data[:, 1] / 100)
     # Return the results.
     return Data
 # ======================================================================================================================

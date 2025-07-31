@@ -36,7 +36,7 @@ class DB_ReviewPage(QMainWindow):
         self.DB_Folder = DB_Folder  # Directory at which the database is saved. 
         self.stack = stack
         self.shared_data = shared_data
-        self.ColumnNames = ['ID', 'B-number', 'Lab Aging', 'Rep #', 
+        self.ColumnNames = ['id', 'ID-number', 'Lab Aging', 'Rep #', 
                             'ICO (Decon)', 'ISO (Decon)',
                             'ICO (base)', 'ICO (tang)', 'ISO (base)', 'ISO (tang)', 
                             'Carbonyl Peak loc (1/cm)', 'Sulfoxide Peak loc (1/cm)', 
