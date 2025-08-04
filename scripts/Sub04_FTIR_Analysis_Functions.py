@@ -933,23 +933,3 @@ def Binary_to_Array(BinaryArr, StrShape, StrDtype):
 # ======================================================================================================================
 
 
-def FindRepresentativeRows(df):
-    """
-    In case we have more than 3 repetition for a given FTIR sample, this function checks all combinations of three and 
-    picks the best combination with the lowest standard deviation. The other repetitions are treated as an outlier. 
-
-    VERY IMPORTANT NOTE: this function uses the "ICO" calculated using the "Baseline" method as an index to pick the 
-    best combination of three. 
-    """
-    # Get the ICO values based on baseline method.
-    ICO = df['ICO_Baseline'].to_numpy()
-    # Define different combinations of three numbers.
-    Combs = list(itertools.combinations(range(len(ICO)), 3))
-    # Calculate the standard deviations and find the best combination.
-    Stds = [ICO[np.array(Combs[i])].std() for i in range(len(Combs))]
-    Index = np.argmin(Stds)
-    # Return the modified DataFrame.
-    return df.iloc[list(Combs[Index])]
-# ======================================================================================================================
-# ======================================================================================================================
-# ======================================================================================================================

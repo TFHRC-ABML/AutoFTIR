@@ -20,7 +20,7 @@ from matplotlib.figure import Figure
 from scripts.Sub02_CreateNewSQLTable import Get_DB_SummaryData, Append_to_Database, Get_Info_From_Name
 from scripts.Sub04_FTIR_Analysis_Functions import Read_FTIR_Data, Baseline_Adjustment_ALS, Normalization_Method_B, \
     Calc_Aliphatic_Area, Calc_Carbonyl_Area, Calc_Sulfoxide_Area, Array_to_Binary, Binary_to_Array, Find_Peaks, \
-    FindRepresentativeRows, Normalization_Method_A, Normalization_Method_C, Normalization_Method_D
+    Normalization_Method_A, Normalization_Method_C, Normalization_Method_D
 from scripts.Sub05_ReviewPage import DB_ReviewPage
 from scripts.Sub06_FTIR_RevisePage import Revise_FTIR_AnalysisPage
 from scripts.Sub07_Deconvolution_Analysis import Run_Deconvolution, gaussian_bell
@@ -459,103 +459,6 @@ class MainPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Review_Edit_DB_Function(self):
         self.stack.setCurrentIndex(1)  # Switch to the second page
-    # ------------------------------------------------------------------------------------------------------------------
-    def Export_DB_Function(self):
-        """
-        This function create (or re-create) a new table from the "FTIR" to with the analysis results of the 
-        current FTIR database.
-        """
-        self.Terminal.appendPlainText(f'>>> Start analysis of the results in the DB:')
-        # Asking user where to save the result file. 
-        OutputDir = QFileDialog.getExistingDirectory(self, "Please select a directory at which you want to save the " + 
-                                                           "resulting Excel file:", self.DB_Folder)
-        OutputPath = os.path.join(OutputDir, self.DB_Name + '.xlsx')
-        # Now, get the latest values of the required parameters from the database. 
-        Column2Fetch = [
-            'id', 'Bnumber', 'Lab_Aging', 'RepNumber', 
-            'ICO_Baseline', 'ICO_Tangential', 'ISO_Baseline', 'ISO_Tangential', 
-            'Aliphatic_Area_Baseline', 'Aliphatic_Area_Tangential', 
-            'Carbonyl_Peak_Wavenumber', 'Sulfoxide_Peak_Wavenumber', 
-            'Carbonyl_Peak_Absorption', 'Sulfoxide_Peak_Absorption',
-            'IsOutlier', 'Deconv_ICO', 'Deconv_ISO']
-        self.cursor.execute(f"SELECT {', '.join(Column2Fetch)} FROM FTIR")
-        data = self.cursor.fetchall()
-        data = pd.DataFrame(data, columns=Column2Fetch)
-        data = data[data.IsOutlier == 0]            # Exclude the outlier data. 
-        # Prepare a table for the results. 
-        Res ={
-            'B_Number': [],
-            'Lab_Aging_Condition': [], 'Num_Data': [], 'ICO_Deconv_mean': [], 'ICO_Deconv_std': [], 
-            'ICO_Deconv_COV': [], 'ICO_Deconv_min': [], 'ICO_Deconv_max': [], 'ICO_Deconv_Data': [],
-            'ICO_Baseline_mean': [], 'ICO_Baseline_std': [], 
-            'ICO_Baseline_COV': [], 'ICO_Baseline_min': [], 'ICO_Baseline_max': [], 'ICO_Baseline_Data': [], 
-            'ICO_Tangential_mean': [], 'ICO_Tangential_std': [], 'ICO_Tangential_COV': [], 'ICO_Tangential_min': [], 
-            'ICO_Tangential_max': [], 'ICO_Tangential_Data': [], 'ISO_Baseline_mean': [], 'ISO_Baseline_std': [], 
-            'ISO_Baseline_COV': [], 'ISO_Baseline_min': [], 'ISO_Baseline_max': [], 'ISO_Baseline_Data': [], 
-            'ISO_Tangential_mean': [], 'ISO_Tangential_std': [], 'ISO_Tangential_COV': [], 'ISO_Tangential_min': [], 
-            'ISO_Tangential_max': [], 'ISO_Tangential_Data': [], 'ISO_Deconv_mean': [], 'ISO_Deconv_std': [], 
-            'ISO_Deconv_COV': [], 'ISO_Deconv_min': [], 'ISO_Deconv_max': [], 'ISO_Deconv_Data': [],
-            'Aliphatic_Area_Baseline_mean': [], 'Aliphatic_Area_Baseline_std': [], 'Aliphatic_Area_Baseline_COV': [], 
-            'Aliphatic_Area_Baseline_min': [], 'Aliphatic_Area_Baseline_max': [], 'Aliphatic_Area_Baseline_Data': [], 
-            'Aliphatic_Area_Tangential_mean': [], 'Aliphatic_Area_Tangential_std': [], 'Aliphatic_Area_Tangential_COV': [], 
-            'Aliphatic_Area_Tangential_min': [], 'Aliphatic_Area_Tangential_max': [], 'Aliphatic_Area_Tangential_Data': [], 
-            'Carbonyl_Peak_Wavenumber_mean': [], 'Carbonyl_Peak_Wavenumber_std': [], 'Carbonyl_Peak_Wavenumber_COV': [], 
-            'Carbonyl_Peak_Wavenumber_min': [], 'Carbonyl_Peak_Wavenumber_max': [], 'Carbonyl_Peak_Wavenumber_Data': [], 
-            'Sulfoxide_Peak_Wavenumber_mean': [], 'Sulfoxide_Peak_Wavenumber_std': [], 'Sulfoxide_Peak_Wavenumber_COV': [], 
-            'Sulfoxide_Peak_Wavenumber_min': [], 'Sulfoxide_Peak_Wavenumber_max': [], 'Sulfoxide_Peak_Wavenumber_Data': [], 
-            'Carbonyl_Peak_Absorption_mean': [], 'Carbonyl_Peak_Absorption_std': [], 'Carbonyl_Peak_Absorption_COV': [], 
-            'Carbonyl_Peak_Absorption_min': [], 'Carbonyl_Peak_Absorption_max': [], 'Carbonyl_Peak_Absorption_Data': [], 
-            'Sulfoxide_Peak_Absorption_mean': [], 'Sulfoxide_Peak_Absorption_std': [], 'Sulfoxide_Peak_Absorption_COV': [], 
-            'Sulfoxide_Peak_Absorption_min': [], 'Sulfoxide_Peak_Absorption_max': [], 'Sulfoxide_Peak_Absorption_Data': []}
-        # Define a function to add data to the results. 
-        def AddResults(Res, data, ResLabel):
-            Res[f'{ResLabel}_mean'].append(data.mean())
-            Res[f'{ResLabel}_std'].append(data.std())
-            Res[f'{ResLabel}_COV'].append(data.std() / data.mean())
-            Res[f'{ResLabel}_min'].append(data.min())
-            Res[f'{ResLabel}_max'].append(data.max())
-            Res[f'{ResLabel}_Data'].append('|'.join(list(data.astype(str))))
-            # Return the updated "Res"
-            return Res
-        # Start iterating over the unique "B-numbers" and analyze the results. 
-        Bnumber = data['Bnumber'].unique()             # Unique B-numbers. 
-        for bnum in Bnumber:                            # Iterate over all B-numbers. 
-            # Get the unique aging condition. 
-            AgeData = data[data['Bnumber'] == bnum]
-            Aging = AgeData['Lab_Aging'].unique()
-            # Iterate over the aging condition. 
-            for aging in Aging:
-                # Get the unique sample repetitions. 
-                RepData = AgeData[AgeData['Lab_Aging'] == aging]
-                if len(RepData) < 3:
-                    self.Terminal.appendPlainText(f'>>> Warning! Not enough available repetitions for ' + 
-                                                  f'B-number={bnum} at aging level of {aging}: ' + 
-                                                  f'Need {3 - len(RepData)} more.')
-                elif len(RepData) > 3:
-                    RepData = FindRepresentativeRows(RepData)
-                # Add the data to the "Res" dictionary. 
-                Res['B_Number'].append(bnum)
-                Res['Lab_Aging_Condition'].append(aging)
-                Res['Num_Data'].append(len(RepData))
-                Res = AddResults(Res, RepData['ICO_Baseline'].to_numpy(),   'ICO_Baseline')
-                Res = AddResults(Res, RepData['ICO_Tangential'].to_numpy(), 'ICO_Tangential')
-                Res = AddResults(Res, RepData['Deconv_ICO'].to_numpy(),     'ICO_Deconv')
-                Res = AddResults(Res, RepData['ISO_Baseline'].to_numpy(),   'ISO_Baseline')
-                Res = AddResults(Res, RepData['ISO_Tangential'].to_numpy(), 'ISO_Tangential')
-                Res = AddResults(Res, RepData['Deconv_ISO'].to_numpy(),     'ISO_Deconv')
-                Res = AddResults(Res, RepData['Aliphatic_Area_Baseline'].to_numpy(), 'Aliphatic_Area_Baseline')
-                Res = AddResults(Res, RepData['Aliphatic_Area_Tangential'].to_numpy(), 'Aliphatic_Area_Tangential')
-                Res = AddResults(Res, RepData['Carbonyl_Peak_Wavenumber'].to_numpy(), 'Carbonyl_Peak_Wavenumber')
-                Res = AddResults(Res, RepData['Sulfoxide_Peak_Wavenumber'].to_numpy(), 'Sulfoxide_Peak_Wavenumber')
-                Res = AddResults(Res, RepData['Carbonyl_Peak_Absorption'].to_numpy(), 'Carbonyl_Peak_Absorption')
-                Res = AddResults(Res, RepData['Sulfoxide_Peak_Absorption'].to_numpy(), 'Sulfoxide_Peak_Absorption')
-        # Convert "Res" dictionary to DataFrame. 
-        Res = pd.DataFrame(Res)
-        Res = Res.sort_values(by=["B_Number"])
-        # Save the results as an excel file. 
-        Res.to_excel(OutputPath, index=False)
-        # Save the results to the Database. 
-        Res.to_sql('FTIR_Analysis_DB', self.conn, if_exists="replace", index=False)
     # ------------------------------------------------------------------------------------------------------------------
     def update_Carbonyl_min(self, value):
         # Clear the highlighted area. 

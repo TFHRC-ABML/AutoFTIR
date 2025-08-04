@@ -8,7 +8,9 @@
 import os
 import sys
 import sqlite3
+import itertools
 import numpy as np
+import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
 from openpyxl.utils import get_column_letter
@@ -71,19 +73,29 @@ class DB_ReviewPage(QMainWindow):
             'Sulfoxide_Min_Wavenumber', 'Sulfoxide_Max_Wavenumber',
             'Aliphatic_Min_Wavenumber', 'Aliphatic_Max_Wavenumber']
         self.ColumnNamesAnalysis = [
-            'B_Number', 'Lab_Aging_Condition', 'Num_Data',
-            'ICO_Baseline_mean', 'ICO_Baseline_std', 'ICO_Baseline_COV',
-            'ICO_Deconv_mean', 'ICO_Deconv_std', 'ICO_Deconv_COV',
-            'ICO_Tangential_mean', 'ICO_Tangential_std', 'ICO_Tangential_COV',
-            'ISO_Baseline_mean', 'ISO_Baseline_std', 'ISO_Baseline_COV',
-            'ISO_Deconv_mean', 'ISO_Deconv_std', 'ISO_Deconv_COV',
-            'ISO_Tangential_mean', 'ISO_Tangential_std', 'ISO_Tangential_COV',
-            'Aliphatic_Area_Baseline_mean', 'Aliphatic_Area_Baseline_std', 'Aliphatic_Area_Baseline_COV',
-            'Aliphatic_Area_Tangential_mean', 'Aliphatic_Area_Tangential_std', 'Aliphatic_Area_Tangential_COV',
-            'Carbonyl_Peak_Wavenumber_mean', 'Carbonyl_Peak_Wavenumber_std', 'Carbonyl_Peak_Wavenumber_COV',
-            'Sulfoxide_Peak_Wavenumber_mean', 'Sulfoxide_Peak_Wavenumber_std', 'Sulfoxide_Peak_Wavenumber_COV',
-            'Carbonyl_Peak_Absorption_mean', 'Carbonyl_Peak_Absorption_std', 'Carbonyl_Peak_Absorption_COV',
-            'Sulfoxide_Peak_Absorption_mean', 'Sulfoxide_Peak_Absorption_std', 'Sulfoxide_Peak_Absorption_COV']
+            'ID-number', 'Laboratory Aging', 'Number of Data', 
+            'Mean of ICO (deconvolution)', 'Std of ICO (deconvolution)', 'COV of ICO (deconvolution)', 
+            'Mean of ICO (baseline integration)', 'Std of ICO (baseline integration)', 
+            'COV of ICO (baseline integration)', 
+            'Mean of ICO (tangential integration)', 'Std of ICO (tangential integration)', 
+            'COV of ICO (tangential integration)', 
+            'Mean of ISO (deconvolution)', 'Std of ISO (deconvolution)', 'COV of ISO (deconvolution)', 
+            'Mean of ISO (baseline integration)', 'Std of ISO (baseline integration)', 
+            'COV of ISO (baseline integration)', 
+            'Mean of ISO (tangential integration)', 'Std of ISO (tangential integration)', 
+            'COV of ISO (tangential integration)', 
+            'Mean of Aliphatic Area (baseline integration)', 'Std of Aliphatic Area (baseline integration)', 
+            'COV of Aliphatic Area (baseline integration)', 
+            'Mean of Aliphatic Area (tangential integration)', 'Std of Aliphatic Area (tangential integration)', 
+            'COV of Aliphatic Area (tangential integration)', 
+            'Mean of Carbonyl Peak Wavenumber (cm⁻¹)', 'Std of Carbonyl Peak Wavenumber (cm⁻¹)', 
+            'COV of Carbonyl Peak Wavenumber (cm⁻¹)', 
+            'Mean of Sulfoxide Peak Wavenumber (cm⁻¹)', 'Std of Sulfoxide Peak Wavenumber (cm⁻¹)', 
+            'COV of Sulfoxide Peak Wavenumber (cm⁻¹)', 
+            'Mean of Carbonyl Peak Absorption', 'Std of Carbonyl Peak Absorption', 
+            'COV of Carbonyl Peak Absorption', 
+            'Mean of Sulfoxide Peak Absorption', 'Std of Sulfoxide Peak Absorption', 
+            'COV of Sulfoxide Peak Absorption',]
         self.IdentifierCombs = Get_Identifier_Combinations(self.cursor)
         self.PushButtonStyle = {
             "General": """
@@ -269,12 +281,18 @@ class DB_ReviewPage(QMainWindow):
         self.Button_Export_Record.clicked.connect(self.Function_Button_Export_Individual)
         self.Button_Export_Record.setSizePolicy(self.Button_Export_Record.sizePolicy().Expanding, 
                                                 self.Button_Export_Record.sizePolicy().Preferred)
-        # Next button for Exporting the whole database.
-        self.Button_Export_Database = QPushButton("Export Database Summary")
+        # Next button for Exporting the whole database (summary).
+        self.Button_Export_Database = QPushButton("Export Database (Summary)")
         self.Button_Export_Database.setStyleSheet(self.PushButtonStyle['Export'])
         self.Button_Export_Database.clicked.connect(self.Function_Button_Export_Database)
         self.Button_Export_Database.setSizePolicy(self.Button_Export_Database.sizePolicy().Expanding, 
                                                   self.Button_Export_Database.sizePolicy().Preferred)
+        # Next button for Exporting the database.
+        self.Button_Export_Analysis = QPushButton("Export Database (Combined)")
+        self.Button_Export_Analysis.setStyleSheet(self.PushButtonStyle['Export'])
+        self.Button_Export_Analysis.clicked.connect(self.Function_Button_Export_Database_Combined)
+        self.Button_Export_Analysis.setSizePolicy(self.Button_Export_Analysis.sizePolicy().Expanding, 
+                                                  self.Button_Export_Analysis.sizePolicy().Preferred)
         # Next button for Deleting a record.
         self.Button_Delete_Record = QPushButton("Delete Selected Record")
         self.Button_Delete_Record.setStyleSheet(self.PushButtonStyle['Delete'])
@@ -286,10 +304,11 @@ class DB_ReviewPage(QMainWindow):
         Section04_Layout.addWidget(self.Button_Delete_Record)
         Section04_Layout.addWidget(self.Button_Export_Record)
         Section04_Layout.addWidget(self.Button_Export_Database)
+        Section04_Layout.addWidget(self.Button_Export_Analysis)
         Section04_Layout.addWidget(self.Button_Analysis)
         Section04_Layout.addWidget(self.Button_Go2Main)
         Section04.setLayout(Section04_Layout)
-        RightLayout.addWidget(Section04, 30)
+        RightLayout.addWidget(Section04, 35)
         # --------------------------------------------------------------------------------------------------------------
         # Section 04: Output section.
         Section05 = QGroupBox("Output section (Terminal-like)")
@@ -302,7 +321,7 @@ class DB_ReviewPage(QMainWindow):
         self.Terminal.appendPlainText(">>> Review_Database_Results()\n")
         Section05_Layout.addWidget(self.Terminal)
         Section05.setLayout(Section05_Layout)
-        RightLayout.addWidget(Section05, 50)
+        RightLayout.addWidget(Section05, 45)
         # --------------------------------------------------------------------------------------------------------------
         # Final placement of the right and left layouts.
         layout.addLayout(LeftLayout, 70)
@@ -437,31 +456,26 @@ class DB_ReviewPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Analysis(self):
         # First check which view needed to be shown.
-        if self.Button_Analysis.text() == "Show Analysis Results":
-            # First of all, check if the analysis is available.
-            self.cursor.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name = ?", ("FTIR_Analysis_DB",))
-            Response = self.cursor.fetchone()
-            if not Response:
-                # Such table is not existed and user need to first analyze the results.
-                QMessageBox.critical(self, "Analysis NOT available",
-                                     f"The analysis results are NOT available. Please use the 'Main Page' button and " +
-                                     f"go back to the main page. Then, click on 'Analyze DB and Export to Excel' " +
-                                     f"button to perform the analysis and then use this page for visualization.")
-                return
-            # If results are available, prepare the page.
+        if self.Button_Analysis.text() == "Analysis Results Page":
+            # First of all, check if the analysis is available or user may want to rerun the analysis.
+            self.Rerun_Database_Analysis()
+            # Prepare the page.
             self.DropDown_Bnumber.setEnabled(False)
             self.DropDown_Bnumber.setCurrentIndex(0)
             self.DropDown_LabAging.setEnabled(False)
             self.DropDown_LabAging.setCurrentIndex(0)
             self.Button_Fetch.setEnabled(False)
             self.Button_Modify.setEnabled(False)
+            self.Button_Delete_Record.setEnabled(False)
+            self.Button_Export_Record.setEnabled(False)
+            self.Button_Export_Database.setEnabled(False)
+            self.Button_Export_Analysis.setEnabled(False)
             self.Button_Go2Main.setEnabled(False)
             self.Terminal.appendPlainText(
-                f"\n>>> Moving to the Analysis of Results view:")
+                f"\n>>> Moving to the Analysis of Results view.")
             # Get the results from the DB.
             self.cursor.execute(
-                f"SELECT {', '.join(self.ColumnNamesAnalysis)} FROM FTIR_Analysis_DB")
+                f"SELECT {', '.join([f'[{col}]' for col in self.ColumnNamesAnalysis])} FROM FTIR_Analysis_DB")
             Rows = self.cursor.fetchall()
             # Clear the table.
             self.Table.clearContents()
@@ -486,15 +500,19 @@ class DB_ReviewPage(QMainWindow):
                     item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                     self.Table.setItem(row_idx, col_idx, item)
             # Change the text on the button.
-            self.Button_Analysis.setText('Show Database')
+            self.Button_Analysis.setText('Database Page')
         else:
             # Show the database content.
             self.DropDown_Bnumber.setEnabled(True)
             self.DropDown_Bnumber.setCurrentIndex(0)
             self.Button_Modify.setEnabled(True)
+            self.Button_Delete_Record.setEnabled(True)
+            self.Button_Export_Record.setEnabled(True)
+            self.Button_Export_Database.setEnabled(True)
+            self.Button_Export_Analysis.setEnabled(True)
             self.Button_Go2Main.setEnabled(True)
             self.Button_Fetch.setEnabled(True)
-            self.Terminal.appendPlainText(f"\n>>> Moving to the DB view:")
+            self.Terminal.appendPlainText(f"\n>>> Moving to the DB view.")
             # Clear the table.
             self.Table.clearContents()
             self.Table.clearSelection()
@@ -502,7 +520,7 @@ class DB_ReviewPage(QMainWindow):
             self.Table.setHorizontalHeaderLabels(self.ColumnNames)
             self.Table.setRowCount(10)
             # change the name.
-            self.Button_Analysis.setText('Show Analysis Results')
+            self.Button_Analysis.setText('Analysis Results Page')
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Delete_Record(self): 
         """
@@ -666,6 +684,41 @@ class DB_ReviewPage(QMainWindow):
         wb.save(os.path.join(Directory, FileName))
         # Return nothing. 
         return
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_Export_Database_Combined(self):
+        """
+        This function is for exporting the database after combining the results to evaluate different replicates of the
+        same samples. 
+        """
+        # First, running the combined analysis, if user prefferred to do so. 
+        self.Rerun_Database_Analysis()
+        # Ask for a directory to save the file and file name. 
+        Directory = QFileDialog.getExistingDirectory(self, "Please select Saving Directory", "")
+        # If a file is selected by the user, update the Input_SavePath.
+        if not Directory:
+            QMessageBox.critical(self, "Directory Selection Failed!", f"Directory was NOT selected. Please try again.")
+            return
+        print(f'Saving Directory: {Directory}')
+        # Ask for the file name. 
+        FileName, IsOkButtonPressed = QInputDialog.getText(
+            self, "Output File Name", "Please enter the output file name (without .xlsx):", 
+            text=f'{self.DB_Name}_Export_Combined')
+        if IsOkButtonPressed:
+            FileName = FileName + '.xlsx'
+            print(f"Saving File Name: {FileName}")
+        else:
+            QMessageBox.critical(self, "Output File Name Failed!", 
+                                 f"Output file name was NOT confirmed. Please try again.")
+            return
+        # Retrieve the analysis from the database. 
+        self.cursor.execute("SELECT * FROM FTIR_Analysis_DB")
+        Content = self.cursor.fetchall()
+        self.cursor.execute("PRAGMA Table_Info(FTIR_Analysis_DB)")
+        ColNames = [column[1] for column in self.cursor.fetchall()]
+        # Save the results into the Excel file. 
+        # Do the same as other export options using openpyxl library. But for the sake of time, I'll do it more simply. 
+        Res = pd.read_sql("SELECT * FROM FTIR_Analysis_DB", self.conn)
+        Res.to_excel(os.path.join(Directory, FileName), index=False)
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Export_Individual(self):
         """
@@ -1015,6 +1068,116 @@ class DB_ReviewPage(QMainWindow):
         else:
             # Return the row index and database "id" value correspond to the selected row. 
             return idx, int(ID.text())
+    # ------------------------------------------------------------------------------------------------------------------
+    def Rerun_Database_Analysis(self):
+        """
+        This function first asks user if the analysis for combining the results should be re-run and do the analysis if 
+        neccessary. Then, it will overwrite the results in the database. 
+        """
+        # First, check if the combined result table is available in the SQL database. 
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        TableNames = [name[0] for name in self.cursor.fetchall()]
+        if 'FTIR_Analysis_DB' in TableNames:
+            # Analysis is available. Ask the user to re-run or not. 
+            Msg  = f'Do you want to update the analysis for aggregation of the available FTIR results?'
+            Question = QMessageBox()
+            Question.setIcon(QMessageBox.Question)
+            Question.setWindowTitle("Re-Run Analysis Confirmation")
+            Question.setText(Msg)
+            Question.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            Question.setDefaultButton(QMessageBox.Yes)
+            Reply = Question.exec_()
+            if Reply == QMessageBox.Yes:
+                pass
+            else:
+                return
+        # If user decided to re-run the analysis. 
+        # Now, get the latest values of the required parameters from the database. 
+        Column2Fetch = [            
+            'id', 'Bnumber', 'Lab_Aging', 'RepNumber', 'IsOutlier',
+            'Deconv_ICO', 'Deconv_ISO',
+            'ICO_Baseline', 'ISO_Baseline',
+            'Carbonyl_Area_Baseline', 'Sulfoxide_Area_Baseline', 'Aliphatic_Area_Baseline',
+            'ICO_Tangential', 'ISO_Tangential', 
+            'Carbonyl_Area_Tangential', 'Sulfoxide_Area_Tangential', 'Aliphatic_Area_Tangential',
+            'Carbonyl_Peak_Wavenumber', 'Sulfoxide_Peak_Wavenumber',
+            'Aliphatic_Peak_Wavenumber_1', 'Aliphatic_Peak_Wavenumber_2',
+            'Carbonyl_Peak_Absorption', 'Sulfoxide_Peak_Absorption',
+            'Aliphatic_Peak_Absorption_1', 'Aliphatic_Peak_Absorption_2',
+            'Carbonyl_Min_Wavenumber', 'Carbonyl_Max_Wavenumber',
+            'Sulfoxide_Min_Wavenumber', 'Sulfoxide_Max_Wavenumber',
+            'Aliphatic_Min_Wavenumber', 'Aliphatic_Max_Wavenumber']
+        Labels = [
+            'DB id', 'ID-number', 'Laboratory Aging', 'Repetition Number', 'Is Outlier?',
+            'ICO (deconvolution)', 'ISO (deconvolution)', 
+            'ICO (baseline integration)', 'ISO (baseline integration)',
+            'Carbonyl Area (baseline integration)', 'Sulfoxide Area (baseline integration)',
+            'Aliphatic Area (baseline integration)',
+            'ICO (tangential integration)', 'ISO (tangential integration)',
+            'Carbonyl Area (tangential integration)', 'Sulfoxide Area (tangential integration)',
+            'Aliphatic Area (tangential integration)',
+            'Carbonyl Peak Wavenumber (cm⁻¹)', 'Sulfoxide Peak Wavenumber (cm⁻¹)',
+            'Aliphatic Peak Wavenumber 1 (cm⁻¹)', 'Aliphatic Peak Wavenumber 2 (cm⁻¹)',
+            'Carbonyl Peak Absorption', 'Sulfoxide Peak Absorption',
+            'Aliphatic Peak Absorption 1', 'Aliphatic Peak Absorption 2',
+            'Carbonyl Min Wavenumber', 'Carbonyl Max Wavenumber',
+            'Sulfoxide Min Wavenumber', 'Sulfoxide Max Wavenumber', 
+            'Aliphatic Min Wavenumber', 'Aliphatic Max Wavenumber']
+        self.cursor.execute(f"SELECT {', '.join(Column2Fetch)} FROM FTIR")
+        data = self.cursor.fetchall()
+        data = pd.DataFrame(data, columns=Column2Fetch)         # Convert the retrieved data to DataFrame. 
+        data = data[data.IsOutlier == 0]                        # Exclude the outlier data. 
+        # Prepare a table for the results. 
+        Res = {'B_Number': [], 'Lab_Aging_Condition': [], 'Num_Data': []}
+        for col in Column2Fetch[5:]:
+            for metric in ['mean', 'std', 'COV', 'min', 'max', 'data']:
+                Res[f'{col}_{metric}'] = []
+        # Define a function to add data to the results. 
+        def AddResults(Res, arr, ResLabel):
+            Res[f'{ResLabel}_mean'].append(arr.mean())
+            Res[f'{ResLabel}_std'].append(arr.std())
+            Res[f'{ResLabel}_COV'].append(arr.std() / arr.mean())
+            Res[f'{ResLabel}_min'].append(arr.min())
+            Res[f'{ResLabel}_max'].append(arr.max())
+            Res[f'{ResLabel}_data'].append('|'.join(list(arr.astype(str))))
+            return Res
+        # Start iterating over the unique "B-numbers" and analyze the results. 
+        Bnumber = data['Bnumber'].unique()              # Unique B-numbers. 
+        for bnum in Bnumber:                            # Iterate over all B-numbers. 
+            # Get the unique aging condition. 
+            AgeData = data[data['Bnumber'] == bnum]
+            Aging = AgeData['Lab_Aging'].unique()
+            # Iterate over the aging condition. 
+            for aging in Aging:
+                # Get the unique sample repetitions. 
+                RepData = AgeData[AgeData['Lab_Aging'] == aging]
+                if len(RepData) < 3:
+                    self.Terminal.appendPlainText(f'>>> Warning! Not enough available repetitions for ' + 
+                                                  f'B-number={bnum} at aging level of {aging}: ' + 
+                                                  f'Need {3 - len(RepData)} more.')
+                elif len(RepData) > 3:
+                    RepData = RemoveOutliers(RepData)
+                # Add the data to the "Res" dictionary. 
+                Res['B_Number'].append(bnum)
+                Res['Lab_Aging_Condition'].append(aging)
+                Res['Num_Data'].append(len(RepData))
+                for col in Column2Fetch[5:]:
+                    Res = AddResults(Res, RepData[col].to_numpy(), col)
+        # Convert "Res" dictionary to DataFrame. 
+        Labels4DF = ['ID-number', 'Laboratory Aging', 'Number of Data']
+        for lbl in Labels[5:]:
+            for metric in ['Mean of ', 'Std of ', 'COV of ', 'Min of ', 'Max of ']:
+                Labels4DF.append(metric + lbl)
+            Labels4DF.append(lbl + ' Data')
+        OrgLabels = list(Res.keys())
+        Res = pd.DataFrame(Res)
+        Res = Res.sort_values(by=["B_Number"])
+        Res.rename(columns={OrgLabels[i]: Labels4DF[i] for i in range(len(Labels4DF))}, inplace=True)
+        # Save the results to the Database. 
+        Res.to_sql('FTIR_Analysis_DB', self.conn, if_exists="replace", index=False)
+        # Print the message to the output terminal. 
+        Msg = f'>>> The analysis for aggregation of the available FTIR results is successfully performed!\n'
+        self.Terminal.appendPlainText(Msg)
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
@@ -1073,6 +1236,39 @@ def Read_Resize_Image(path, targetPixel):
     Image_Obj.height = targetPixel
     Image_Obj.width  = Image_Obj.width * Ratio
     return Image_Obj
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def RemoveOutliers(df):
+    """
+    In case we have more than 3 repetition for a given FTIR sample, this function tries to find the outliers and return 
+    the processed Dataframe. 
+
+    VERY IMPORTANT NOTE: this function uses the "ICO" calculated using the "Baseline" method as an index to pick the 
+    best combination of three, if the manual results are available. Otherwise, it will use "ICO" calculated using the 
+    "deconvolution" method. 
+    """
+    # Check if "ICO_Baseline" is available for all rows. 
+    ColName = 'ICO_Baseline'
+    if -1 in df[ColName] or np.any(pd.isnull(df[ColName])):
+        ColName = 'Deconv_ICO'
+    while len(df) > 3:
+        Index = list(df.index)
+        Combinations = list(itertools.combinations(Index, len(Index) - 1))
+        COVs = []
+        for comb in Combinations:
+            Arr = df.loc[list(comb), ColName]
+            COVs.append(Arr.std() / Arr.mean() * 100)
+        if max(COVs) - min(COVs) > 10:
+            # This means that if by removing a specific measurement, the COV reduces by at least 10%, we can assume that 
+            # specific measurement as outlier. Note that the total number of measurements are more than 3. 
+            df = df.loc[list(Combinations[np.argmin(COVs)])]
+        else:
+            break
+    # Return the updated DataFrame. 
+    return df
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

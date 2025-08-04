@@ -20,7 +20,7 @@ from matplotlib.figure import Figure
 from scripts.Sub02_CreateNewSQLTable import Get_DB_SummaryData, Append_to_Database, Get_Info_From_Name, Update_Row_in_Database
 from scripts.Sub04_FTIR_Analysis_Functions import Read_FTIR_Data, Baseline_Adjustment_ALS, Normalization_Method_B, \
     Calc_Aliphatic_Area, Calc_Carbonyl_Area, Calc_Sulfoxide_Area, Array_to_Binary, Binary_to_Array, Find_Peaks, \
-    FindRepresentativeRows, Normalization_Method_A, Normalization_Method_B, Normalization_Method_C, Normalization_Method_D 
+    Normalization_Method_A, Normalization_Method_B, Normalization_Method_C, Normalization_Method_D 
 from scripts.Sub05_ReviewPage import DB_ReviewPage
 from scripts.Sub07_Deconvolution_Analysis import gaussian_bell, Run_Deconvolution
 
