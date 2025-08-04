@@ -2,7 +2,7 @@
 
 [![GitHub License](https://img.shields.io/badge/License-GPL_3.0-yellow.svg)](https://github.com/TFHRC-ABML/AutoFTIR/blob/main/LICENSE)
 
-**[paper](XXXX)**
+**[paper (Under Review, will be posted soon)](https://github.com/TFHRC-ABML/AutoFTIR)**
 
 Authors and Contributors:
 - *S. Farhad Abdollahi (farhad.abdollahi.ctr@dot.gov)*

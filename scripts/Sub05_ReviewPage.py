@@ -87,26 +87,50 @@ class DB_ReviewPage(QMainWindow):
         self.IdentifierCombs = Get_Identifier_Combinations(self.cursor)
         self.PushButtonStyle = {
             "General": """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
+        QPushButton:enabled {
+            background-color: #DCECF9; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: lightgray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
         """, 
             "Export" : """
-        QPushButton:enabled {background-color: #93E9BE; color: black;}
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        QPushButton:checked {background-color: lime;}
+        QPushButton:enabled {
+            background-color: #93E9BE; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #56C28B; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
         """, 
             "Delete":  """
-        QPushButton:enabled {background-color: #FA8072; color: black;}
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        QPushButton:checked {background-color: lime;}
+        QPushButton:enabled {
+            background-color: #FA8072; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #CC5F55; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
         """, 
             "Modify": """
-        QPushButton:enabled {background-color: #F4D35E; color: black;}
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        QPushButton:checked {background-color: lime;}
+        QPushButton:enabled {
+            background-color: #F2E394; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #E0D57D; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
         """, }
         self.initUI()
     # ------------------------------------------------------------------------------------------------------------------
@@ -150,8 +174,8 @@ class DB_ReviewPage(QMainWindow):
         self.Button_Sync = QPushButton("Refresh summay")
         self.Button_Sync.setFont(QFont("Arial", 8))
         self.Button_Sync.clicked.connect(self.Sync_Summary_Info)
-        self.Button_Sync.setFixedSize(100, 30)
         self.Button_Sync.setStyleSheet(self.PushButtonStyle['General'])
+        self.Button_Sync.setSizePolicy(self.Button_Sync.sizePolicy().Expanding, self.Button_Sync.sizePolicy().Preferred)
         # Place the labels in the GUI.
         FormLayout_Left.addRow(Label01,  self.Label_NumData)
         FormLayout_Left.addRow(Label02,  self.Label_NumValidData)
@@ -161,7 +185,7 @@ class DB_ReviewPage(QMainWindow):
         FormLayout_Right.addRow(Label06, self.Label_NumUniqueBnumLabAge)
         Section01_Layout.addLayout(FormLayout_Left)
         Section01_Layout.addLayout(FormLayout_Right)
-        Section01_Layout.addWidget(self.Button_Sync, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        Section01_Layout.addWidget(self.Button_Sync)
         Section01.setLayout(Section01_Layout)
         LeftLayout.addWidget(Section01, 10)
         # --------------------------------------------------------------------------------------------------------------
@@ -205,15 +229,15 @@ class DB_ReviewPage(QMainWindow):
         # Finally, add the apply button.
         self.Button_Fetch = QPushButton("Fetch data")
         self.Button_Fetch.setStyleSheet(self.PushButtonStyle['General'])
+        self.Button_Fetch.setSizePolicy(self.Button_Fetch.sizePolicy().Expanding, 
+                                        self.Button_Fetch.sizePolicy().Preferred)
         self.Button_Fetch.clicked.connect(self.Function_Button_Fetch)
-        self.Button_Fetch.setFixedWidth(150)
         # Place the items in the window.
         Section03_Layout.addWidget(Label_DropDown01)
         Section03_Layout.addWidget(self.DropDown_Bnumber)
         Section03_Layout.addWidget(Label_DropDown02)
         Section03_Layout.addWidget(self.DropDown_LabAging)
-        Section03_Layout.addWidget(
-            self.Button_Fetch, alignment=Qt.AlignHCenter)
+        Section03_Layout.addWidget(self.Button_Fetch)
         Section03.setLayout(Section03_Layout)
         RightLayout.addWidget(Section03, 20)
         # --------------------------------------------------------------------------------------------------------------
@@ -403,14 +427,10 @@ class DB_ReviewPage(QMainWindow):
         self.stack.setCurrentIndex(0)
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Modify(self):
-        # First check if a row is selected or not.
-        SelectedRow = self.Table.currentRow()
-        if SelectedRow == -1:
-            QMessageBox.warning(self, "Row Selection Error",
-                                f"Please select a row in the table to review/Modify its FTIR calculations.")
+        # Find the selected index. 
+        idx, ID = self.Check_Row_Selection(ActionLabel='modify')
+        if (ID == -1) or (idx == -1):
             return
-        # Otherwise, fetch the data for this row from the database.
-        ID = int(self.Table.item(SelectedRow, 0).text())
         # Call Stack 3 and send the ID.
         self.shared_data.data = ID
         self.stack.setCurrentIndex(2)
@@ -489,53 +509,56 @@ class DB_ReviewPage(QMainWindow):
         This function deletes the current selection from the database. 
         """
         # Find the selected index. 
-        SelectedIndices = self.Table.selectionModel().selectedIndexes()
-        if len(SelectedIndices) == 0:           
-            # Nothing is selected. 
-            QMessageBox.critical(self, "Data Selection Error!", 
-                                 f"Row was not selected. Please first select the row you want to delete " + 
-                                 f"from the database.")
+        idx, ID = self.Check_Row_Selection(ActionLabel='delete')
+        if (ID == -1) or (idx == -1):
             return
-        idx = SelectedIndices[0].row()
-        # Check the id value. 
-        ID = self.Table.item(idx, 0)
-        if ID == None or ID.text() == '':
-            # Table is empty. 
-            QMessageBox.critical(self, "Data Selection Error!",
-                                 f"Selected row ({idx + 1}) is empty. Please first fetch the data using the " +
-                                 f'"Search and Filter" section, then select the intended row, and then click ' +
-                                 f'"Delete Record" button.')
-            return
+        # SelectedIndices = self.Table.selectionModel().selectedIndexes()
+        # if len(SelectedIndices) == 0:           
+        #     # Nothing is selected. 
+        #     QMessageBox.critical(self, "Data Selection Error!", 
+        #                          f"Row was not selected. Please first select the row you want to delete " + 
+        #                          f"from the database.")
+        #     return
+        # idx = SelectedIndices[0].row()
+        # # Check the id value. 
+        # ID = self.Table.item(idx, 0)
+        # if ID == None or ID.text() == '':
+        #     # Table is empty. 
+        #     QMessageBox.critical(self, "Data Selection Error!",
+        #                          f"Selected row ({idx + 1}) is empty. Please first fetch the data using the " +
+        #                          f'"Search and Filter" section, then select the intended row, and then click ' +
+        #                          f'"Delete Record" button.')
+        #     return
+        # else:
+        #     ID = int(ID.text())
+        Bnumber = self.Table.item(idx, 1).text()
+        LabAging= self.Table.item(idx, 2).text()
+        RepNum  = self.Table.item(idx, 3).text()
+        Msg  = f'Do you want to Permanently Delete the following record?:\n' + \
+                f'ID-number={Bnumber} at age level of "{LabAging}", Rep {RepNum}'
+        Question = QMessageBox()
+        Question.setIcon(QMessageBox.Question)
+        Question.setWindowTitle("Delete Record Confirmation")
+        Question.setText(Msg)
+        Question.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        Question.setDefaultButton(QMessageBox.No)
+        Reply = Question.exec_()
+        # Check the response. 
+        if Reply == QMessageBox.Yes:
+            # User Choose Yes.
+            # deleting the record from the Database.
+            self.cursor.execute("DELETE FROM FTIR WHERE id = ?", (ID,))
+            self.conn.commit()
+            # Updating the table. 
+            self.Function_Button_Fetch()
+            # Print out the results in Terminal. 
+            Msg = f'>>> 1 record was successfully deleted from Database:\n>>>\tID-number={Bnumber}\n' + \
+                    f'>>>\tLab aging level: "{LabAging}"\n>>>\tRepetition number: {RepNum}\n>>>'
+            self.Terminal.appendPlainText(Msg)
         else:
-            ID = int(ID.text())
-            Bnumber = self.Table.item(idx, 1).text()
-            LabAging= self.Table.item(idx, 2).text()
-            RepNum  = self.Table.item(idx, 3).text()
-            Msg  = f'Do you want to Permanently Delete the following record?:\n' + \
-                   f'ID-number={Bnumber} at age level of "{LabAging}", Rep {RepNum}'
-            Question = QMessageBox()
-            Question.setIcon(QMessageBox.Question)
-            Question.setWindowTitle("Delete Record Confirmation")
-            Question.setText(Msg)
-            Question.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            Question.setDefaultButton(QMessageBox.No)
-            Reply = Question.exec_()
-            # Check the response. 
-            if Reply == QMessageBox.Yes:
-                # User Choose Yes.
-                # deleting the record from the Database.
-                self.cursor.execute("DELETE FROM FTIR WHERE id = ?", (ID,))
-                self.conn.commit()
-                # Updating the table. 
-                self.Function_Button_Fetch()
-                # Print out the results in Terminal. 
-                Msg = f'>>> 1 record was successfully deleted from Database:\n>>>\tID-number={Bnumber}\n' + \
-                      f'>>>\tLab aging level: "{LabAging}"\n>>>\tRepetition number: {RepNum}\n>>>'
-                self.Terminal.appendPlainText(Msg)
-            else:
-                # User clicked No, and ignore the deletion. 
-                print("Ignore")
-                return
+            # User clicked No, and ignore the deletion. 
+            print("Ignore")
+            return
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Export_Database(self):
         """
@@ -649,27 +672,30 @@ class DB_ReviewPage(QMainWindow):
         This function exports the raw and analyzed results of the selected individual record as an Excel file. 
         """
         # Find the selected index. 
-        SelectedIndices = self.Table.selectionModel().selectedIndexes()
-        if len(SelectedIndices) == 0:           
-            # Nothing is selected. 
-            QMessageBox.critical(self, "Data Selection Error!", 
-                                        f"Row was not selected. Please first select the row you want to export " + 
-                                        f"from the database.")
-            self.Export_ProgressBar.hide()
+        idx, ID = self.Check_Row_Selection(ActionLabel='export')
+        if (ID == -1) or (idx == -1):
             return
-        idx = SelectedIndices[0].row()
-        # Check the id value. 
-        ID = self.Table.item(idx, 0)
-        if ID == None or ID.text() == '':
-            # Table is empty. 
-            QMessageBox.critical(self, "Data Selection Error!", 
-                                        f"Selected row ({idx + 1}) is empty. Please first fetch the data using the " +
-                                        f'"Search and Filter" section, then select the intended row, and then click ' +
-                                        f'"Export (Individual Record)" button.')
-            self.Export_ProgressBar.hide()
-            return
-        # Otherwise, everything is ready for exporting. 
-        ID = int(ID.text())             # The ID to retrieve the data from the DB. 
+        # SelectedIndices = self.Table.selectionModel().selectedIndexes()
+        # if len(SelectedIndices) == 0:           
+        #     # Nothing is selected. 
+        #     QMessageBox.critical(self, "Data Selection Error!", 
+        #                                 f"Row was not selected. Please first select the row you want to export " + 
+        #                                 f"from the database.")
+        #     self.Export_ProgressBar.hide()
+        #     return
+        # idx = SelectedIndices[0].row()
+        # # Check the id value. 
+        # ID = self.Table.item(idx, 0)
+        # if ID == None or ID.text() == '':
+        #     # Table is empty. 
+        #     QMessageBox.critical(self, "Data Selection Error!", 
+        #                                 f"Selected row ({idx + 1}) is empty. Please first fetch the data using the " +
+        #                                 f'"Search and Filter" section, then select the intended row, and then click ' +
+        #                                 f'"Export (Individual Record)" button.')
+        #     self.Export_ProgressBar.hide()
+        #     return
+        # # Otherwise, everything is ready for exporting. 
+        # ID = int(ID.text())             # The ID to retrieve the data from the DB. 
         # --------------------------------------------------------------------------------------------------------------
         # Ask for a directory to save the file and file name. 
         Directory = QFileDialog.getExistingDirectory(self, "Please select Saving Directory", "")
@@ -962,6 +988,33 @@ class DB_ReviewPage(QMainWindow):
         wb.save(os.path.join(Directory, FileName))
         # Return nothing. 
         return
+    # ------------------------------------------------------------------------------------------------------------------
+    def Check_Row_Selection(self, ActionLabel):
+        """
+        This function checks if a row from the table is selected and have valid data in it. Then, it will return the 
+        row index and "id" of the selected row. 
+        """
+        # Find the selected index. 
+        SelectedIndices = self.Table.selectionModel().selectedIndexes()
+        if len(SelectedIndices) == 0:           
+            # Nothing is selected. 
+            QMessageBox.critical(self, "Data Selection Error!", 
+                                 f"Row was not selected. Please first select the row you want to {ActionLabel} " + 
+                                 f"from the database.")
+            return -1, -1
+        idx = SelectedIndices[0].row()
+        # Check the id value. 
+        ID = self.Table.item(idx, 0)
+        if ID == None or ID.text() == '':
+            # Table is empty. 
+            QMessageBox.critical(self, "Data Selection Error!",
+                                 f"Selected row ({idx + 1}) is empty. Please first fetch the data using the " +
+                                 f'"Search and Filter" section, then select the intended row to {ActionLabel}, and ' + 
+                                 f'then click the corresponding button.')
+            return -1, -1
+        else:
+            # Return the row index and database "id" value correspond to the selected row. 
+            return idx, int(ID.text())
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

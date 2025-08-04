@@ -89,6 +89,53 @@ class MainPage(QMainWindow):
         self.ShowFileExistedError = True
         self.Deconv = {}
         self.CurBinderInfo = {'Bnumber': -1, 'RepNum': -1, 'LabAging': ''}  # To share binder info between functions.
+        self.PushButtonStyle = {
+            "General": """
+        QPushButton:enabled {
+            background-color: #DCECF9; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: lightgray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, 
+            "AddData" : """
+        QPushButton:enabled {
+            background-color: #93E9BE; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #56C28B; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, 
+            "Review":  """
+        QPushButton:enabled {
+            background-color: #F2E394; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #E0D57D; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, 
+            "Reject":  """
+        QPushButton:enabled {
+            background-color: #FA8072; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #CC5F55; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, }
         self.initUI()
     # ------------------------------------------------------------------------------------------------------------------
     def initUI(self):
@@ -129,12 +176,8 @@ class MainPage(QMainWindow):
         self.Button_Sync = QPushButton("Refresh summay")
         self.Button_Sync.setFont(QFont("Arial", 8))
         self.Button_Sync.clicked.connect(self.Sync_Summary_Info)
-        self.Button_Sync.setFixedSize(100, 30)
-        self.Button_Sync.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_Sync.setStyleSheet(self.PushButtonStyle['General'])
+        self.Button_Sync.setSizePolicy(self.Button_Sync.sizePolicy().Expanding, self.Button_Sync.sizePolicy().Preferred)
         # Place the labels in the GUI.
         FormLayout_Left.addRow(Label01,  self.Label_NumData)
         FormLayout_Left.addRow(Label02,  self.Label_NumValidData)
@@ -144,7 +187,7 @@ class MainPage(QMainWindow):
         FormLayout_Right.addRow(Label06, self.Label_NumUniqueBnumLabAge)
         Section01_Layout.addLayout(FormLayout_Left)
         Section01_Layout.addLayout(FormLayout_Right)
-        Section01_Layout.addWidget(self.Button_Sync, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        Section01_Layout.addWidget(self.Button_Sync)
         Section01.setLayout(Section01_Layout)
         Left_Top_Layout = QHBoxLayout()
         Left_Top_Layout.addWidget(Section01, 50)
@@ -188,12 +231,9 @@ class MainPage(QMainWindow):
         self.Button_UpdatePreprocess = QPushButton("Update\nRe-Plot")
         self.Button_UpdatePreprocess.setFont(QFont("Arial", 8))
         self.Button_UpdatePreprocess.clicked.connect(self.Function_Button_UpdatePreprocessing)
-        self.Button_UpdatePreprocess.setFixedSize(70, 50)
-        self.Button_UpdatePreprocess.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_UpdatePreprocess.setStyleSheet(self.PushButtonStyle['General'])
+        self.Button_UpdatePreprocess.setSizePolicy(self.Button_UpdatePreprocess.sizePolicy().Expanding, 
+                                                   self.Button_UpdatePreprocess.sizePolicy().Preferred)
         # Make everything disable. 
         self.LineEdit_ALSLambda.setEnabled(False)
         self.LineEdit_ALSRatio.setEnabled(False)
@@ -253,40 +293,35 @@ class MainPage(QMainWindow):
         Section03 = QGroupBox("DB Manager")
         Section03_Layout = QVBoxLayout()
         # Button for adding more data to database. 
-        self.Button_AddData = QPushButton("Add more data to DB")
+        self.Button_AddData = QPushButton("Add Data to DB")
         self.Button_AddData.setFont(QFont("Arial", 10, QFont.Bold))
         self.Button_AddData.clicked.connect(self.Add_More_Data_Function)
-        self.Button_AddData.setFixedSize(230, 45)
-        self.Button_AddData.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
-        Section03_Layout.addWidget(self.Button_AddData, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        self.Button_AddData.setStyleSheet(self.PushButtonStyle['AddData'])
+        self.Button_AddData.setSizePolicy(self.Button_AddData.sizePolicy().Expanding, 
+                                          self.Button_AddData.sizePolicy().Preferred)
+        Section03_Layout.addWidget(self.Button_AddData)
         # Button for review the database. 
-        self.Button_ReviewDB = QPushButton("Review and Edit DB")
+        self.Button_ReviewDB = QPushButton("Review && Edit DB")
         self.Button_ReviewDB.setFont(QFont("Arial", 10, QFont.Bold))
         self.Button_ReviewDB.clicked.connect(self.Review_Edit_DB_Function)
-        self.Button_ReviewDB.setFixedSize(230, 45)
-        self.Button_ReviewDB.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
-        Section03_Layout.addWidget(self.Button_ReviewDB, alignment=Qt.AlignHCenter | Qt.AlignTop)
-        # Button for exporting the database to excel.
-        self.Button_ExportDB = QPushButton("Analyze DB and Export to Excel")
-        self.Button_ExportDB.setFont(QFont("Arial", 10, QFont.Bold))
-        self.Button_ExportDB.clicked.connect(self.Export_DB_Function)
-        self.Button_ExportDB.setFixedSize(230, 45)
-        self.Button_ExportDB.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
-        Section03_Layout.addWidget(self.Button_ExportDB, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        self.Button_ReviewDB.setStyleSheet(self.PushButtonStyle['Review'])
+        self.Button_ReviewDB.setSizePolicy(self.Button_ReviewDB.sizePolicy().Expanding, 
+                                           self.Button_ReviewDB.sizePolicy().Preferred)
+        Section03_Layout.addWidget(self.Button_ReviewDB)
+        # # Button for exporting the database to excel.
+        # self.Button_ExportDB = QPushButton("Analyze DB and Export to Excel")
+        # self.Button_ExportDB.setFont(QFont("Arial", 10, QFont.Bold))
+        # self.Button_ExportDB.clicked.connect(self.Export_DB_Function)
+        # self.Button_ExportDB.setStyleSheet(
+        # """
+        # QPushButton:hover {background-color: lightgray;}
+        # QPushButton:pressed {background-color: gray;}
+        # """)
+        # self.Button_ExportDB.setSizePolicy(self.Button_ExportDB.sizePolicy().Expanding, 
+        #                                    self.Button_ExportDB.sizePolicy().Preferred)
+        # Section03_Layout.addWidget(self.Button_ExportDB)
         Section03.setLayout(Section03_Layout)
-        RightLayout.addWidget(Section03, 20)
+        RightLayout.addWidget(Section03, 16)
         # --------------------------------------------------------------------------------------------------------------
         # Section 4: Adjustment for the graphs. 
         Section04 = QGroupBox("Analysis Adjustment Tool")
@@ -323,32 +358,25 @@ class MainPage(QMainWindow):
             FormLayout_Spinbox.addRow(label, spinbox)
         Section04_Layout.addLayout(FormLayout_Spinbox)
         # Add button to save the progress. 
-        self.Button_SaveProgress = QPushButton("Save the Current Progress & Exit")
-        self.Button_SaveProgress.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_SaveProgress = QPushButton("Cencel")
+        self.Button_SaveProgress.setStyleSheet(self.PushButtonStyle['General'])
+        self.Button_SaveProgress.setSizePolicy(self.Button_SaveProgress.sizePolicy().Expanding, 
+                                               self.Button_SaveProgress.sizePolicy().Preferred)
         self.Button_SaveProgress.clicked.connect(self.SaveExit_Button_Function)        # Connect to a custom function
         self.Button_SaveProgress.setEnabled(False)
         Section04_Layout.addWidget(self.Button_SaveProgress)
         # Outlier specification button.
-        self.Button_Outlier = QPushButton("Outlier, exclude this data!")
-        self.Button_Outlier.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_Outlier = QPushButton("Mark as Outlier")
+        self.Button_Outlier.setStyleSheet(self.PushButtonStyle['Reject'])
+        self.Button_Outlier.setSizePolicy(self.Button_Outlier.sizePolicy().Expanding, 
+                                          self.Button_Outlier.sizePolicy().Preferred)
         self.Button_Outlier.clicked.connect(self.Outlier_Button_Function)  # Connect to a custom function
         self.Button_Outlier.setEnabled(False)
         Section04_Layout.addWidget(self.Button_Outlier)
         # OK button.
-        self.Button_OK = QPushButton("OK")
-        self.Button_OK.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_OK = QPushButton("OK && Accept")
+        self.Button_OK.setStyleSheet(self.PushButtonStyle['AddData'])
+        self.Button_OK.setSizePolicy(self.Button_OK.sizePolicy().Expanding, self.Button_OK.sizePolicy().Preferred)
         self.Button_OK.clicked.connect(self.OK_Button_Function)
         self.Button_OK.setEnabled(False)
         Section04_Layout.addWidget(self.Button_OK)
@@ -378,7 +406,7 @@ class MainPage(QMainWindow):
         self.Terminal.appendPlainText(">>> FTIR_Aalysis_Tool()\n")
         Section05_Layout.addWidget(self.Terminal)
         Section05.setLayout(Section05_Layout)
-        RightLayout.addWidget(Section05, 40)
+        RightLayout.addWidget(Section05, 44)
         # --------------------------------------------------------------------------------------------------------------
         # At the very end, add the left and right layouts to the main layout.
         layout.addLayout(LeftLayout, 80)

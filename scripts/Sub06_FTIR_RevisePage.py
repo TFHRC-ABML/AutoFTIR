@@ -56,6 +56,53 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             'ALS_Lambda', 'ALS_Ratio', 'ALS_NumIter', 'Normalization_Method', 'Normalization_Coeff',
             'RawWavenumber', 'RawWavenumber_shape', 'RawWavenumber_dtype',
             'RawAbsorbance', 'RawAbsorbance_shape', 'RawAbsorbance_dtype']
+        self.PushButtonStyle = {
+            "General": """
+        QPushButton:enabled {
+            background-color: #DCECF9; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: lightgray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, 
+            "AddData" : """
+        QPushButton:enabled {
+            background-color: #93E9BE; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #56C28B; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, 
+            "Review":  """
+        QPushButton:enabled {
+            background-color: #F2E394; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #E0D57D; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, 
+            "Reject":  """
+        QPushButton:enabled {
+            background-color: #FA8072; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:disabled {
+            background-color: #dcdcdc; color: #808080;border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:hover {
+            background-color: #CC5F55; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:pressed {
+            background-color: gray; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        QPushButton:checked {
+            background-color: lime; color: #000; border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;}
+        """, }
         self.initUI()
     # ------------------------------------------------------------------------------------------------------------------
     def initUI(self):
@@ -96,12 +143,8 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.Button_Sync = QPushButton("Refresh summay")
         self.Button_Sync.setFont(QFont("Arial", 8))
         self.Button_Sync.clicked.connect(self.Sync_Summary_Info)
-        self.Button_Sync.setFixedSize(100, 30)
-        self.Button_Sync.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_Sync.setStyleSheet(self.PushButtonStyle['General'])
+        self.Button_Sync.setSizePolicy(self.Button_Sync.sizePolicy().Expanding, self.Button_Sync.sizePolicy().Preferred)
         # Place the labels in the GUI.
         FormLayout_Left.addRow(Label01,  self.Label_NumData)
         FormLayout_Left.addRow(Label02,  self.Label_NumValidData)
@@ -111,7 +154,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         FormLayout_Right.addRow(Label06, self.Label_NumUniqueBnumLabAge)
         Section01_Layout.addLayout(FormLayout_Left)
         Section01_Layout.addLayout(FormLayout_Right)
-        Section01_Layout.addWidget(self.Button_Sync, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        Section01_Layout.addWidget(self.Button_Sync)
         Section01.setLayout(Section01_Layout)
         Left_Top_Layout = QHBoxLayout()
         Left_Top_Layout.addWidget(Section01, 50)
@@ -155,12 +198,9 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.Button_UpdatePreprocess = QPushButton("Update\nRe-Plot")
         self.Button_UpdatePreprocess.setFont(QFont("Arial", 8))
         self.Button_UpdatePreprocess.clicked.connect(self.Function_Button_UpdatePreprocessing)
-        self.Button_UpdatePreprocess.setFixedSize(70, 50)
-        self.Button_UpdatePreprocess.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_UpdatePreprocess.setStyleSheet(self.PushButtonStyle['General'])
+        self.Button_UpdatePreprocess.setSizePolicy(self.Button_UpdatePreprocess.sizePolicy().Expanding, 
+                                                   self.Button_UpdatePreprocess.sizePolicy().Preferred)
         # Make everything disable. 
         self.LineEdit_ALSLambda.setEnabled(False)
         self.LineEdit_ALSRatio.setEnabled(False)
@@ -174,7 +214,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         FormLayout12_Right.addRow(Label12_04, self.DropDown_NormalizationMethod)
         Section12_Layout.addLayout(FormLayout12_Left)
         Section12_Layout.addLayout(FormLayout12_Right)
-        Section12_Layout.addWidget(self.Button_UpdatePreprocess, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        Section12_Layout.addWidget(self.Button_UpdatePreprocess)
         Section12.setLayout(Section12_Layout)
         Left_Top_Layout.addWidget(Section12, 60)
         LeftLayout.addLayout(Left_Top_Layout, 10)
@@ -220,40 +260,33 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         Section03 = QGroupBox("DB Manager")
         Section03_Layout = QVBoxLayout()
         # Button for adding more data to database. 
-        self.Button_AddData = QPushButton("Add more data to DB")
+        self.Button_AddData = QPushButton("Add Data to DB")
         self.Button_AddData.setFont(QFont("Arial", 10, QFont.Bold))
-        self.Button_AddData.setFixedSize(230, 45)
         self.Button_AddData.setEnabled(False)
-        self.Button_AddData.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
-        Section03_Layout.addWidget(self.Button_AddData, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        self.Button_AddData.setStyleSheet(self.PushButtonStyle['AddData'])
+        self.Button_AddData.setSizePolicy(self.Button_AddData.sizePolicy().Expanding, 
+                                          self.Button_AddData.sizePolicy().Preferred)
+        Section03_Layout.addWidget(self.Button_AddData)
         # Button for review the database. 
-        self.Button_ReviewDB = QPushButton("Review and Edit DB")
+        self.Button_ReviewDB = QPushButton("Review && Edit DB")
         self.Button_ReviewDB.setFont(QFont("Arial", 10, QFont.Bold))
-        self.Button_ReviewDB.setFixedSize(230, 45)
         self.Button_ReviewDB.setEnabled(False)
-        self.Button_ReviewDB.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
-        Section03_Layout.addWidget(self.Button_ReviewDB, alignment=Qt.AlignHCenter | Qt.AlignTop)
-        # Button for exporting the database to excel.
-        self.Button_ExportDB = QPushButton("Analyze DB and Export to Excel")
-        self.Button_ExportDB.setFont(QFont("Arial", 10, QFont.Bold))
-        self.Button_ExportDB.setFixedSize(230, 45)
-        self.Button_ExportDB.setEnabled(False)
-        self.Button_ExportDB.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
-        Section03_Layout.addWidget(self.Button_ExportDB, alignment=Qt.AlignHCenter | Qt.AlignTop)
+        self.Button_ReviewDB.setStyleSheet(self.PushButtonStyle['Review'])
+        self.Button_ReviewDB.setSizePolicy(self.Button_ReviewDB.sizePolicy().Expanding, 
+                                           self.Button_ReviewDB.sizePolicy().Preferred)
+        Section03_Layout.addWidget(self.Button_ReviewDB)
+        # # Button for exporting the database to excel.
+        # self.Button_ExportDB = QPushButton("Analyze DB and Export to Excel")
+        # self.Button_ExportDB.setFont(QFont("Arial", 10, QFont.Bold))
+        # self.Button_ExportDB.setEnabled(False)
+        # self.Button_ExportDB.setStyleSheet(
+        # """
+        # QPushButton:hover {background-color: lightgray;}
+        # QPushButton:pressed {background-color: gray;}
+        # """)
+        # Section03_Layout.addWidget(self.Button_ExportDB, alignment=Qt.AlignHCenter | Qt.AlignTop)
         Section03.setLayout(Section03_Layout)
-        RightLayout.addWidget(Section03, 20)
+        RightLayout.addWidget(Section03, 16)
         # --------------------------------------------------------------------------------------------------------------
         # Section 4: Adjustment for the graphs. 
         Section04 = QGroupBox("Analysis Adjustment Tool")
@@ -290,32 +323,25 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             FormLayout_Spinbox.addRow(label, spinbox)
         Section04_Layout.addLayout(FormLayout_Spinbox)
         # Add button to save the progress. 
-        self.Button_SaveProgress = QPushButton("Cancel")
-        self.Button_SaveProgress.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_SaveProgress = QPushButton("Cencel")
+        self.Button_SaveProgress.setStyleSheet(self.PushButtonStyle['General'])
+        self.Button_SaveProgress.setSizePolicy(self.Button_SaveProgress.sizePolicy().Expanding, 
+                                               self.Button_SaveProgress.sizePolicy().Preferred)
         self.Button_SaveProgress.clicked.connect(self.SaveExit_Button_Function)        # Connect to a custom function
         self.Button_SaveProgress.setEnabled(True)
         Section04_Layout.addWidget(self.Button_SaveProgress)
         # Outlier specification button.
-        self.Button_Outlier = QPushButton("Outlier, exclude this data!")
-        self.Button_Outlier.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_Outlier = QPushButton("Mark as Outlier")
+        self.Button_Outlier.setStyleSheet(self.PushButtonStyle['Reject'])
+        self.Button_Outlier.setSizePolicy(self.Button_Outlier.sizePolicy().Expanding, 
+                                          self.Button_Outlier.sizePolicy().Preferred)
         self.Button_Outlier.clicked.connect(self.Outlier_Button_Function)  # Connect to a custom function
         self.Button_Outlier.setEnabled(True)
         Section04_Layout.addWidget(self.Button_Outlier)
         # OK button.
-        self.Button_OK = QPushButton("OK")
-        self.Button_OK.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.Button_OK = QPushButton("OK && Accept")
+        self.Button_OK.setStyleSheet(self.PushButtonStyle['AddData'])
+        self.Button_OK.setSizePolicy(self.Button_OK.sizePolicy().Expanding, self.Button_OK.sizePolicy().Preferred)
         self.Button_OK.clicked.connect(self.OK_Button_Function)
         self.Button_OK.setEnabled(True)
         Section04_Layout.addWidget(self.Button_OK)
@@ -351,19 +377,15 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         Section07 = QGroupBox("Fitted Gaussians:")
         Section07_Layout = QVBoxLayout()
         self.RePlot_Button = QPushButton("Re-Plot")
-        self.RePlot_Button.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.RePlot_Button.setStyleSheet(self.PushButtonStyle['General'])
+        self.RePlot_Button.setSizePolicy(self.RePlot_Button.sizePolicy().Expanding, 
+                                         self.RePlot_Button.sizePolicy().Preferred)
         self.RePlot_Button.clicked.connect(self.RePlot_Button_Function)
         self.RePlot_Button.setEnabled(True)
         self.AddNewRow_Button = QPushButton("Add row")
-        self.AddNewRow_Button.setStyleSheet(
-        """
-        QPushButton:hover {background-color: lightgray;}
-        QPushButton:pressed {background-color: gray;}
-        """)
+        self.AddNewRow_Button.setStyleSheet(self.PushButtonStyle['General'])
+        self.AddNewRow_Button.setSizePolicy(self.AddNewRow_Button.sizePolicy().Expanding, 
+                                            self.AddNewRow_Button.sizePolicy().Preferred)
         self.AddNewRow_Button.clicked.connect(self.AddNewRow_Button_Function)
         self.AddNewRow_Button.setEnabled(True)
         # Adding a table. 
@@ -372,14 +394,14 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.GL_Table.setItemDelegate(delegate)
         self.GL_Table.setRowCount(10)
         self.GL_Table.setColumnCount(3)
-        self.GL_Table.setHorizontalHeaderLabels(['Mean (1/cm)', 'Std (1/cm)', 'Amplitude'])
+        self.GL_Table.setHorizontalHeaderLabels(['Mean (cm⁻¹)', 'Std (cm⁻¹)', 'Amplitude'])
         self.GL_Table.setSelectionBehavior(self.GL_Table.SelectRows)
         self.GL_Table.setSelectionMode(self.GL_Table.SingleSelection)
         Section07_Layout.addWidget(self.RePlot_Button)
         Section07_Layout.addWidget(self.AddNewRow_Button)
         Section07_Layout.addWidget(self.GL_Table)
         Section07.setLayout(Section07_Layout)
-        RightLayout.addWidget(Section07, 40)
+        RightLayout.addWidget(Section07, 44)
         # --------------------------------------------------------------------------------------------------------------
         # At the very end, add the left and right layouts to the main layout.
         layout.addLayout(LeftLayout, 80)
