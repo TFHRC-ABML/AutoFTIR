@@ -275,16 +275,6 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.Button_ReviewDB.setSizePolicy(self.Button_ReviewDB.sizePolicy().Expanding, 
                                            self.Button_ReviewDB.sizePolicy().Preferred)
         Section03_Layout.addWidget(self.Button_ReviewDB)
-        # # Button for exporting the database to excel.
-        # self.Button_ExportDB = QPushButton("Analyze DB and Export to Excel")
-        # self.Button_ExportDB.setFont(QFont("Arial", 10, QFont.Bold))
-        # self.Button_ExportDB.setEnabled(False)
-        # self.Button_ExportDB.setStyleSheet(
-        # """
-        # QPushButton:hover {background-color: lightgray;}
-        # QPushButton:pressed {background-color: gray;}
-        # """)
-        # Section03_Layout.addWidget(self.Button_ExportDB, alignment=Qt.AlignHCenter | Qt.AlignTop)
         Section03.setLayout(Section03_Layout)
         RightLayout.addWidget(Section03, 16)
         # --------------------------------------------------------------------------------------------------------------
@@ -944,7 +934,6 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             # Enable the buttons of DB manager.
             self.Button_AddData.setEnabled(True)
             self.Button_ReviewDB.setEnabled(True)
-            self.Button_ExportDB.setEnabled(True)
             # Return "True".
             return True
         # Otherwise, return False.
@@ -1054,7 +1043,6 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             # Selected files are not matching the content, reactivate the buttons and free up the variables. 
             self.Button_AddData.setEnabled(True)
             self.Button_ReviewDB.setEnabled(True)
-            # self.Button_ExportDB.setEnabled(True)
             self.CurrentFileIndex = 0
             self.CurrentFileList = []
             self.Terminal.appendPlainText("\n\n>>> Ready for new file selection!")      # Print message to user.

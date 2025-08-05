@@ -308,18 +308,6 @@ class MainPage(QMainWindow):
         self.Button_ReviewDB.setSizePolicy(self.Button_ReviewDB.sizePolicy().Expanding, 
                                            self.Button_ReviewDB.sizePolicy().Preferred)
         Section03_Layout.addWidget(self.Button_ReviewDB)
-        # # Button for exporting the database to excel.
-        # self.Button_ExportDB = QPushButton("Analyze DB and Export to Excel")
-        # self.Button_ExportDB.setFont(QFont("Arial", 10, QFont.Bold))
-        # self.Button_ExportDB.clicked.connect(self.Export_DB_Function)
-        # self.Button_ExportDB.setStyleSheet(
-        # """
-        # QPushButton:hover {background-color: lightgray;}
-        # QPushButton:pressed {background-color: gray;}
-        # """)
-        # self.Button_ExportDB.setSizePolicy(self.Button_ExportDB.sizePolicy().Expanding, 
-        #                                    self.Button_ExportDB.sizePolicy().Preferred)
-        # Section03_Layout.addWidget(self.Button_ExportDB)
         Section03.setLayout(Section03_Layout)
         RightLayout.addWidget(Section03, 16)
         # --------------------------------------------------------------------------------------------------------------
@@ -441,7 +429,6 @@ class MainPage(QMainWindow):
         # disable the DB manager buttons. 
         self.Button_AddData.setEnabled(False)
         self.Button_ReviewDB.setEnabled(False)
-        self.Button_ExportDB.setEnabled(False)
         # Call the function to renew the plots.
         while True:
             self.CurrentFileIndex += 1
@@ -813,7 +800,6 @@ class MainPage(QMainWindow):
             # Enable the buttons of DB manager.
             self.Button_AddData.setEnabled(True)
             self.Button_ReviewDB.setEnabled(True)
-            self.Button_ExportDB.setEnabled(True)
             # enable the preprocessing options. 
             self.LineEdit_ALSLambda.setEnabled(False)
             self.LineEdit_ALSRatio.setEnabled(False)
@@ -913,7 +899,6 @@ class MainPage(QMainWindow):
         if type(Data) == type(None):
             self.CurrentFileIndex += 1  # Increase the current file index to make sure it is at end of the file list.
             Check = self.Check_EndofLoop()      # Perform the "Check" to take care of the GUI properties. 
-            # self.Button_ExportDB.setEnabled(True)
             self.CurrentFileIndex = 0
             self.CurrentFileList = []
             self.Terminal.appendPlainText("\n>>> Ready for new file selection!")      # Print message to user.
