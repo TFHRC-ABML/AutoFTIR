@@ -958,7 +958,7 @@ class DB_ReviewPage(QMainWindow):
             cell1.alignment = center_alignment
         for i in range(Gaussians.shape[0]):
             Values = [i + 1, Gaussians[i, 0], abs(Gaussians[i, 1]), Gaussians[i, 2], 
-                    np.sqrt(2 * np.pi) * Gaussians[i, 2] * Gaussians[i, 1]]
+                    np.abs(np.sqrt(2 * np.pi) * Gaussians[i, 2] * Gaussians[i, 1])]
             NumberFormat = ["0", "0.00", "0.0000", "0.000000", "0.0000"]
             for j in range(5):
                 # Write the title.

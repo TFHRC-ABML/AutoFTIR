@@ -159,21 +159,21 @@ class MainPage(QMainWindow):
         FormLayout_Left  = QFormLayout()            # Define a form layout for the left side.
         FormLayout_Right = QFormLayout()            # Define a form layout for the right side. 
         # Create the left side labels in Section 01.
-        Label01 = QLabel("Number of data:")
+        Label01 = QLabel("Number of Data:")
         self.Label_NumData = QLabel(f'{SummaryData["NumRows"]}')
-        Label02 = QLabel("Number of valid data:")
+        Label02 = QLabel("Number of Valid Data:")
         self.Label_NumValidData = QLabel(f'{SummaryData["NumValidRows"]}')
         Label03 = QLabel("Avg Number Replicates:")
         self.Label_AvgNumReplicates = QLabel(f'{SummaryData["AvgNumRep"]:.1f}')
         # Create the right side labels in Section 01.
-        Label04 = QLabel("Number of unique B-numbers:")
+        Label04 = QLabel("Number of Unique B-Numbers:")
         self.Label_NumUniqueBnum = QLabel(f'{SummaryData["NumUniqueBnumber"]}')
-        Label05 = QLabel("Number of unique Lab agings:")
+        Label05 = QLabel("Number of Unique Lab Agings:")
         self.Label_NumUniqueLabAge = QLabel(f'{SummaryData["NumUniqueLabAging"]}')
-        Label06 = QLabel("Number of Unique Bnum/LabAge:")
+        Label06 = QLabel("Number of Unique B-Number/Lab Aging:")
         self.Label_NumUniqueBnumLabAge = QLabel(f'{SummaryData["NumUniqueBnumLabAge"]}')
         # Syncing button.
-        self.Button_Sync = QPushButton("Refresh summay")
+        self.Button_Sync = QPushButton("Refresh Summay")
         self.Button_Sync.setFont(QFont("Arial", 8))
         self.Button_Sync.clicked.connect(self.Sync_Summary_Info)
         self.Button_Sync.setStyleSheet(self.PushButtonStyle['General'])
@@ -258,10 +258,10 @@ class MainPage(QMainWindow):
         Section02_Layout = QVBoxLayout()
         FormLayout_Sec2_top   = QFormLayout()
         FormLayout_Sec2_down  = QFormLayout()
-        Label_Sec2_1 = QLabel("File name for current analysis:")
-        self.Label_CurrentFileName = QLabel('Waiting for file...')
+        Label_Sec2_1 = QLabel("File Name for Current Analysis:")
+        self.Label_CurrentFileName = QLabel('Waiting for File...')
         FormLayout_Sec2_top.addRow(Label_Sec2_1, self.Label_CurrentFileName)
-        self.Label_NumFilesProgress = QLabel(f"Number of selected files: N/A")
+        self.Label_NumFilesProgress = QLabel(f"Number of Selected Files: N/A")
         self.NumFilesProgress_bar = QProgressBar(self)
         self.NumFilesProgress_bar.setMinimum(0)
         self.NumFilesProgress_bar.setMaximum(100)
@@ -275,7 +275,7 @@ class MainPage(QMainWindow):
         self.canvas = FigureCanvas(self.fig)
         self.axes = [self.fig.add_subplot(2, 2, i + 1) for i in range(4)]
         # Add the labels to the axes. 
-        Titles = ['Wide range data', 'Carbonyl area', 'Sulfoxide area', 'Aliphatic area']
+        Titles = ['Wide Range Data', 'Carbonyl Area', 'Sulfoxide Area', 'Aliphatic Area']
         for i in range(4):
             if i >= 2:
                 self.axes[i].set_xlabel('Wavenumber (1/cm)', fontsize=9, fontweight='bold', color='k')
@@ -283,6 +283,7 @@ class MainPage(QMainWindow):
                 self.axes[i].set_ylabel('Normalized Absorption', fontsize=9, fontweight='bold', color='k')
             self.axes[i].set_title(Titles[i], fontsize=11, fontweight='bold', color='k')
             self.axes[i].grid(which='both', color='gray', alpha=0.1)
+            self.axes[i].set_xticklabels(f'{num:,.0f}' for num in self.axes[i].get_xticks())
         self.fig.tight_layout()
         self.canvas.draw()
         Section02_Layout.addWidget(self.canvas)
@@ -316,9 +317,9 @@ class MainPage(QMainWindow):
         Section04_Layout = QVBoxLayout()
         FormLayout_Spinbox = QFormLayout()
         self.spinboxes = []                 # A list to store the spinboxes.
-        LabelTitles = ['Carbonyl range, Min (1/cm):',  'Carbonyl range, Max (1/cm):',
-                       'Sulfoxide range, Min (1/cm):', 'Sulfoxide range, Max (1/cm):',
-                       'Aliphatic range, Min (1/cm):', 'Aliphatic range, Max (1/cm):']
+        LabelTitles = ['Carbonyl Range, Min (1/cm):',  'Carbonyl Range, Max (1/cm):',
+                       'Sulfoxide Range, Min (1/cm):', 'Sulfoxide Range, Max (1/cm):',
+                       'Aliphatic Range, Min (1/cm):', 'Aliphatic Range, Max (1/cm):']
         SpinBoxRanges = [[1600, 1800],  [1600, 1800], [940,  1100], [940, 1100], [1350, 1600], [1350, 1600]]
         SpinBoxValues = [1670, 1690, 1020, 1040, 1370, 1420]
         Step = 4.0
@@ -372,7 +373,7 @@ class MainPage(QMainWindow):
         RightLayout.addWidget(Section04, 30)
         # --------------------------------------------------------------------------------------------------------------
         # Section 06: Results of the deconvolution. 
-        Section06 = QGroupBox("Deconvolution analysis results:")
+        Section06 = QGroupBox("Deconvolution Analysis Results:")
         Section06_Layout = QVBoxLayout()
         self.Decon_Label_CArea = QLabel('Carbonyl Area: ')
         self.Decon_Label_SArea = QLabel('Sulfoxide Area: ')
@@ -386,12 +387,12 @@ class MainPage(QMainWindow):
         RightLayout.addWidget(Section06, 10)
         # --------------------------------------------------------------------------------------------------------------
         # Section 05: Output section. 
-        Section05 = QGroupBox("Output section (Terminal-like)")
+        Section05 = QGroupBox("Output Section (Terminal)")
         Section05_Layout = QVBoxLayout()
         self.Terminal = QPlainTextEdit(self)
         self.Terminal.setReadOnly(True)             # Make it read-only. User shouldn't write!
         self.Terminal.setStyleSheet("background-color: black; color: white;")
-        self.Terminal.appendPlainText(">>> FTIR_Aalysis_Tool()\n")
+        self.Terminal.appendPlainText(">>> AutoFTIR()\n")
         Section05_Layout.addWidget(self.Terminal)
         Section05.setLayout(Section05_Layout)
         RightLayout.addWidget(Section05, 44)
@@ -415,7 +416,7 @@ class MainPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Add_More_Data_Function(self):
         # First ask user to select some FTIR test results.
-        FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please select new FTIR test result files:', 
+        FileList, _ = QFileDialog.getOpenFileNames(self, caption='Please Select New FTIR Test Result Files:', 
                                                    directory='', 
                                                    filter="DPT Files (*.dpt);;CSV Files (*.csv);;All Files (*)")
         self.CurrentFileList = FileList
@@ -424,8 +425,8 @@ class MainPage(QMainWindow):
         if len(FileList) == 0:          # Do nothing in case files are NOT selected. 
             return
         # Otherwise, print the number of selected files and update the label in progress bar. 
-        self.Terminal.appendPlainText(f">>> {len(FileList)} New files selected for analysis")
-        self.Label_NumFilesProgress.setText(f"Number of selected/Remained files: {len(FileList)}, {len(FileList)}")
+        self.Terminal.appendPlainText(f">>> {len(FileList)} New Files Selected for Analysis")
+        self.Label_NumFilesProgress.setText(f"Number of Selected/Remained Files: {len(FileList)}, {len(FileList)}")
         # disable the DB manager buttons. 
         self.Button_AddData.setEnabled(False)
         self.Button_ReviewDB.setEnabled(False)
@@ -463,6 +464,7 @@ class MainPage(QMainWindow):
         self.CIndex2 = np.arange(self.XCminIndx, self.XCmaxIndx + 1)
         self.axes[1].fill_between(self.XC[self.CIndex2], self.YC[self.CIndex2], 0, color='r', alpha=0.1, 
                                   label='Carbonyl Area')
+        self.axes[1].set_xticklabels(f'{num:,.0f}' for num in self.axes[1].get_xticks())
         # Redraw the canvas
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
@@ -482,6 +484,7 @@ class MainPage(QMainWindow):
         self.CIndex2 = np.arange(self.XCminIndx, self.XCmaxIndx + 1)
         self.axes[1].fill_between(self.XC[self.CIndex2], self.YC[self.CIndex2], 0, color='r', alpha=0.1, 
                                   label='Carbonyl Area')
+        self.axes[1].set_xticklabels(f'{num:,.0f}' for num in self.axes[1].get_xticks())
         # Redraw the canvas
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
@@ -501,6 +504,7 @@ class MainPage(QMainWindow):
         self.CIndex2 = np.arange(self.XSminIndx, self.XSmaxIndx + 1)
         self.axes[2].fill_between(self.XS[self.CIndex2], self.YS[self.CIndex2], 0, color='y', alpha=0.1, 
                                   label='Sulfoxide Area')
+        self.axes[2].set_xticklabels(f'{num:,.0f}' for num in self.axes[2].get_xticks())
         # Redraw the canvas
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
@@ -520,6 +524,7 @@ class MainPage(QMainWindow):
         self.CIndex2 = np.arange(self.XSminIndx, self.XSmaxIndx + 1)
         self.axes[2].fill_between(self.XS[self.CIndex2], self.YS[self.CIndex2], 0, color='y', alpha=0.1, 
                                   label='Sulfoxide Area')
+        self.axes[2].set_xticklabels(f'{num:,.0f}' for num in self.axes[2].get_xticks())
         # Redraw the canvas
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
@@ -539,6 +544,7 @@ class MainPage(QMainWindow):
         self.AIndex2 = np.arange(self.XAminIndx, self.XAmaxIndx + 1)
         self.axes[3].fill_between(self.XA[self.AIndex2], self.YA[self.AIndex2], 0, color='g', alpha=0.1, 
                                   label='Aliphatic Area')
+        self.axes[3].set_xticklabels(f'{num:,.0f}' for num in self.axes[3].get_xticks())
         # Redraw the canvas
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
@@ -558,6 +564,7 @@ class MainPage(QMainWindow):
         self.AIndex2 = np.arange(self.XAminIndx, self.XAmaxIndx + 1)
         self.axes[3].fill_between(self.XA[self.AIndex2], self.YA[self.AIndex2], 0, color='g', alpha=0.1, 
                                   label='Aliphatic Area')
+        self.axes[3].set_xticklabels(f'{num:,.0f}' for num in self.axes[3].get_xticks())
         # Redraw the canvas.
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
@@ -901,7 +908,7 @@ class MainPage(QMainWindow):
             Check = self.Check_EndofLoop()      # Perform the "Check" to take care of the GUI properties. 
             self.CurrentFileIndex = 0
             self.CurrentFileList = []
-            self.Terminal.appendPlainText("\n>>> Ready for new file selection!")      # Print message to user.
+            self.Terminal.appendPlainText("\n>>> Ready for New File Selection!")      # Print message to user.
             self.Label_NumFilesProgress.setText(f"Number of selected files: N/A")   # reset the number of selected files
             self.NumFilesProgress_bar.setValue(0)                                   # Set progress bar to zero.
             return
@@ -966,10 +973,10 @@ class MainPage(QMainWindow):
         # --------------------------------------------------------------------------------------------------------------
         # Plot the data. 
         # First, whole wavenumbers. 
-        self.axes[0].plot(data[:, 0], data[:, 1], color='k', ls='-', label='Processed data')
-        self.axes[0].plot(Rawdata[:, 0], Rawdata[:, 1], color='b', ls='-', lw=0.5, label='raw data')
-        self.axes[0].axvspan(xmin=1620, xmax=1800, alpha=0.1, color='r', label='Carbonyl search area')
-        self.axes[0].axvspan(xmin=970,  xmax=1070, alpha=0.1, color='y', label='Sulfoxide search area')
+        self.axes[0].plot(data[:, 0], data[:, 1], color='k', ls='-', label='Processed Data')
+        self.axes[0].plot(Rawdata[:, 0], Rawdata[:, 1], color='b', ls='-', lw=0.5, label='Raw Data')
+        self.axes[0].axvspan(xmin=1620, xmax=1800, alpha=0.1, color='r', label='Carbonyl Search Area')
+        self.axes[0].axvspan(xmin=970,  xmax=1070, alpha=0.1, color='y', label='Sulfoxide Search Area')
         self.axes[0].legend()
         self.axes[0].set_xlim([2000, 600])
         # For cabonyl plot.
@@ -982,7 +989,7 @@ class MainPage(QMainWindow):
         self.XCmin = self.XC[self.XCminIndx]
         self.XCmax = self.XC[self.XCmaxIndx]
         self.CIndex2 = np.arange(self.XCminIndx, self.XCmaxIndx + 1)
-        self.axes[1].plot(data[CIndex, 0], data[CIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[1].plot(data[CIndex, 0], data[CIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR Data')
         self.axes[1].fill_between(self.XC[self.CIndex2], self.YC[self.CIndex2], 0, color='r', alpha=0.2, 
                                   label='Carbonyl Area')
         Xgaussian = np.linspace(1600, 1800, num=1000)
@@ -1007,7 +1014,7 @@ class MainPage(QMainWindow):
         self.XSmin = self.XS[self.XSminIndx]
         self.XSmax = self.XS[self.XSmaxIndx]
         self.SIndex2 = np.arange(self.XSminIndx, self.XSmaxIndx + 1)
-        self.axes[2].plot(data[SIndex, 0], data[SIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[2].plot(data[SIndex, 0], data[SIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR Data')
         self.axes[2].fill_between(self.XS[self.SIndex2], self.YS[self.SIndex2], 0, color='y', alpha=0.2, 
                                   label='Sulfoxide Area')
         Xgaussian = np.linspace(940, 1100, num=1000)
@@ -1032,7 +1039,7 @@ class MainPage(QMainWindow):
         self.XAmin = self.XA[self.XAminIndx]
         self.XAmax = self.XA[self.XAmaxIndx]
         self.AIndex2 = np.arange(self.XAminIndx, self.XAmaxIndx + 1)
-        self.axes[3].plot(data[AIndex, 0], data[AIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[3].plot(data[AIndex, 0], data[AIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR Data')
         self.axes[3].fill_between(self.XA[self.AIndex2], self.YA[self.AIndex2], 0, color='g', alpha=0.2, 
                                   label='Aliphatic Area')
         Xgaussian = np.linspace(1300, 1600, num=1000)
@@ -1047,6 +1054,8 @@ class MainPage(QMainWindow):
                                 ls='--', lw=0.5, color='r')
         self.axes[3].legend()
         self.axes[3].invert_xaxis()
+        for i in range(4):
+            self.axes[i].set_xticklabels(f'{num:,.0f}' for num in self.axes[i].get_xticks())
         # Redraw the canvas
         self.canvas.draw()
         # Enable the adjustment buttons. 
@@ -1054,7 +1063,7 @@ class MainPage(QMainWindow):
         self.Button_Outlier.setEnabled(True)
         self.Button_SaveProgress.setEnabled(True)
         # Update the file name and remaining number of files. 
-        self.Label_NumFilesProgress.setText(f"Number of selected/Remained files: {len(self.CurrentFileList)}, " + 
+        self.Label_NumFilesProgress.setText(f"Number of Selected/Remained Files: {len(self.CurrentFileList)}, " + 
                                             f"{len(self.CurrentFileList) - self.CurrentFileIndex}")
         self.Label_CurrentFileName.setText(f"{self.CurrentFileList[self.CurrentFileIndex]}")
         # Update and enable the spinboxes. 
@@ -1167,10 +1176,10 @@ class MainPage(QMainWindow):
         # Plot the data. 
         self.Funtion_Clear_Axes()       # First, clear the plots.
         # First, whole wavenumbers. 
-        self.axes[0].plot(data[:, 0], data[:, 1], color='k', ls='-', label='Processed data')
-        self.axes[0].plot(self.RawData[:, 0], self.RawData[:, 1], color='b', ls='-', lw=0.5, label='raw data')
-        self.axes[0].axvspan(xmin=1620, xmax=1800, alpha=0.1, color='r', label='Carbonyl search area')
-        self.axes[0].axvspan(xmin=970,  xmax=1070, alpha=0.1, color='y', label='Sulfoxide search area')
+        self.axes[0].plot(data[:, 0], data[:, 1], color='k', ls='-', label='Processed Data')
+        self.axes[0].plot(self.RawData[:, 0], self.RawData[:, 1], color='b', ls='-', lw=0.5, label='Raw Data')
+        self.axes[0].axvspan(xmin=1620, xmax=1800, alpha=0.1, color='r', label='Carbonyl Search Area')
+        self.axes[0].axvspan(xmin=970,  xmax=1070, alpha=0.1, color='y', label='Sulfoxide Search Area')
         self.axes[0].legend()
         self.axes[0].set_xlim([2000, 600])
         # For cabonyl plot.
@@ -1183,7 +1192,7 @@ class MainPage(QMainWindow):
         self.XCmin = self.XC[self.XCminIndx]
         self.XCmax = self.XC[self.XCmaxIndx]
         self.CIndex2 = np.arange(self.XCminIndx, self.XCmaxIndx + 1)
-        self.axes[1].plot(data[CIndex, 0], data[CIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[1].plot(data[CIndex, 0], data[CIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR Data')
         self.axes[1].fill_between(self.XC[self.CIndex2], self.YC[self.CIndex2], 0, color='r', alpha=0.2, 
                                   label='Carbonyl Area')
         Xgaussian = np.linspace(1600, 1800, num=1000)
@@ -1208,7 +1217,7 @@ class MainPage(QMainWindow):
         self.XSmin = self.XS[self.XSminIndx]
         self.XSmax = self.XS[self.XSmaxIndx]
         self.SIndex2 = np.arange(self.XSminIndx, self.XSmaxIndx + 1)
-        self.axes[2].plot(data[SIndex, 0], data[SIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[2].plot(data[SIndex, 0], data[SIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR Data')
         self.axes[2].fill_between(self.XS[self.SIndex2], self.YS[self.SIndex2], 0, color='y', alpha=0.2, 
                                   label='Sulfoxide Area')
         Xgaussian = np.linspace(940, 1100, num=1000)
@@ -1233,7 +1242,7 @@ class MainPage(QMainWindow):
         self.XAmin = self.XA[self.XAminIndx]
         self.XAmax = self.XA[self.XAmaxIndx]
         self.AIndex2 = np.arange(self.XAminIndx, self.XAmaxIndx + 1)
-        self.axes[3].plot(data[AIndex, 0], data[AIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR data')
+        self.axes[3].plot(data[AIndex, 0], data[AIndex, 1], marker='o', ms=3, color='k', ls='-', label='FTIR Data')
         self.axes[3].fill_between(self.XA[self.AIndex2], self.YA[self.AIndex2], 0, color='g', alpha=0.2, 
                                   label='Aliphatic Area')
         Xgaussian = np.linspace(1300, 1600, num=1000)
@@ -1248,6 +1257,8 @@ class MainPage(QMainWindow):
                                 ls='--', lw=0.5, color='r')
         self.axes[3].legend()
         self.axes[3].invert_xaxis()
+        for i in range(4):
+            self.axes[i].set_xticklabels(f'{num:,.0f}' for num in self.axes[i].get_xticks())
         # Redraw the canvas
         self.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
@@ -1259,7 +1270,7 @@ class MainPage(QMainWindow):
         for j in range(4):
             self.axes[j].cla()
         # Prepare the plots. 
-        Titles = ['Wide range data', 'Carbonyl area', 'Sulfoxide area', 'Aliphatic area']
+        Titles = ['Wide Range Data', 'Carbonyl Area', 'Sulfoxide Area', 'Aliphatic Area']
         for i in range(4):
             if i >= 2:
                 self.axes[i].set_xlabel('Wavenumber (1/cm)', fontsize=9, fontweight='bold', color='k')
@@ -1267,6 +1278,7 @@ class MainPage(QMainWindow):
                 self.axes[i].set_ylabel('Normalized Absorption', fontsize=9, fontweight='bold', color='k')
             self.axes[i].set_title(Titles[i], fontsize=11, fontweight='bold', color='k')
             self.axes[i].grid(which='both', color='gray', alpha=0.1)
+            self.axes[i].set_xticklabels(f'{num:,.0f}' for num in self.axes[i].get_xticks())
         # Redraw the canvas
         self.canvas.draw()
         # Return nothing. 

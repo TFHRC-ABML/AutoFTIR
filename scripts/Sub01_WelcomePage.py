@@ -55,11 +55,11 @@ class WelcomePage(QMainWindow):
         Label_Title.setStyleSheet("color: #000000;")
         layout.addWidget(Label_Title)
         # Label_Description
-        Label_Description = QLabel(f"This tool provde a graphical user intergace (GUI) to:\n" + 
-                            f" 1. Analyze the raw data from FTIR test results;\n" + 
-                            f" 2. Create a database of FTIR results\n" +
-                            f" 3. Export the analysis results as Excel files\n" + 
-                            f" 4. Review the raw and processed data for quality control purposes\n")
+        Label_Description = QLabel(f"This tool provides a graphical user interface (GUI) to:\n" + 
+                            f" •  Analyze the raw data from FTIR test results.\n" + 
+                            f" • Create a database of FTIR results.\n" +
+                            f" • Export the analysis results as Excel files.\n" + 
+                            f" • Review the raw and processed data for quality control purposes.\n")
         Label_Description.setAlignment(Qt.AlignLeft)
         Label_Description.setFont(QFont("Arial", 12))
         Label_Description.setStyleSheet("color: #000000;")
