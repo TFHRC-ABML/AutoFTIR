@@ -162,12 +162,11 @@ If you use our code or method in your work, please cite the following:
 @misc{AbdollahiFTIRAnalysisTool2025,
   title = {Development of an Automated FTIR Analysis Framework for Asphalt Binders Using Asymmetric Least Squares Smoothing and Deconvolution},
   author = {Abdollahi, Seyed Farhad and Jahangiri, Behnam, Andriescu, Adrian, Leavitt, Aaron and Mensching, David},
-  year = {TBD},
-  month = XX,
+  year = {2026},
+  month = 05,
   publisher = {Road Materials and Pavement Design},
-  doi = {XXXXX},
+  doi = {10.1080/14680629.2025.2562219},
   urldate = {2024-10-09},
-  archiveprefix = {XXX},
   langid = {english},
   keywords = {FTIR,asphalt binder,deconvolution,oxidation,aging,RTFO,PAV,pavement testing facility,recycling agents,AutoFTIR}
 }
