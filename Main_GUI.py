@@ -23,36 +23,51 @@ def main():
     # ------------------------------------------------------------------------------------------------------------------
     # Show a disclaimer popup. 
     Disclaimer()
+    # Keep coming back to the welcome page for as long as the user switches to another database.
+    while True:
+        # --------------------------------------------------------------------------------------------------------------
+        # Step 01: Initiating the welcome page for the user.
+        Welcome = WelcomePage()         # Creating an object from the welcome page.
+        Welcome.show()                  # show the welcome page.
+        app.exec_()                     # execute the program.
+        # Check the results: if the path and filename to create or load the database is not provided, close the app.
+        DB_FileName = Welcome.DB_FileName               # Database file name.
+        DB_Folder   = Welcome.DB_Folder                 # Database directory.
+        if (not Welcome.DB_FileName) or (not Welcome.DB_Folder):
+            break
+        # --------------------------------------------------------------------------------------------------------------
+        # Step 02: Check if the database is already existed (load the database) or create a new database.
+        conn = None
+        try:
+            if os.path.isfile(os.path.join(DB_Folder, DB_FileName + '.db')):
+                # Load the database.
+                conn = sqlite3.connect(os.path.join(DB_Folder, DB_FileName + '.db'))
+                cursor = conn.cursor()
+            else:
+                # Create the database and connect the SQL courser.
+                conn, cursor = Create_SQLite3_DB_Connect(os.path.join(DB_Folder, DB_FileName + '.db'))
+            # ----------------------------------------------------------------------------------------------------------
+            # Step 03: Create a new window for the loaded/created database with more options (Actual program).
+            Main = Main_Window(conn, cursor, DB_FileName, DB_Folder)
+        except Exception as Err:
+            # The file was already checked on the welcome page, so this is unexpected. Go back to the welcome page.
+            QMessageBox.critical(None, "Unable to Open Database!",
+                                 f"The database '{DB_FileName}.db' could not be opened.\n\n{Err}")
+            if conn is not None:
+                conn.close()
+            continue
+        Main.show()
+        app.exec()
+        # --------------------------------------------------------------------------------------------------------------
+        # Close the connection to SQL, and the closed window with any plot dialog it left open.
+        conn.close()
+        Main.deleteLater()
+        if not Main.SwitchDatabase:
+            break
     # ------------------------------------------------------------------------------------------------------------------
-    # Step 01: Initiating the welcome page for the user. 
-    Welcome = WelcomePage()         # Creating an object from the welcome page. 
-    Welcome.show()                  # show the welcome page. 
-    app.exec_()                     # execute the program.
-    # Check the results: if the path and filename to create or load the database is not provided, close the app. 
-    DB_FileName = Welcome.DB_FileName               # Database file name.
-    DB_Folder   = Welcome.DB_Folder                 # Database directory.
-    if (not Welcome.DB_FileName) or (not Welcome.DB_Folder):
-        app.quit()
-        return
-    # ------------------------------------------------------------------------------------------------------------------
-    # Step 02: Check if the database is already existed (load the database) or create a new database.
-    if os.path.isfile(os.path.join(DB_Folder, DB_FileName + '.db')):
-        # Load the database. 
-        conn = sqlite3.connect(os.path.join(DB_Folder, DB_FileName + '.db'))
-        cursor = conn.cursor()
-    else:
-        # Create the database and connect the SQL courser. 
-        conn, cursor = Create_SQLite3_DB_Connect(os.path.join(DB_Folder, DB_FileName + '.db'))
-    # ------------------------------------------------------------------------------------------------------------------
-    # Step 03: Create a new window for the loaded/created database with more options (Actual program).
-    Main = Main_Window(conn, cursor, DB_FileName, DB_Folder)
-    Main.show()
-    app.exec()
-    # ------------------------------------------------------------------------------------------------------------------
-    # Quit the application (and connection to SQL) and return Nothing. 
-    conn.close()
+    # Quit the application and return Nothing.
     app.quit()
-    return 
+    return
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

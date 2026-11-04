@@ -15,6 +15,29 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
 from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator
 from PyQt5.QtCore import Qt, QRegExp
 from time import sleep
+from scripts.Sub02_CreateNewSQLTable import Check_Database_File
+
+
+def Can_Open_Database(Parent, Path):
+    """
+    This function checks an existing database file (see "Check_Database_File"), and shows the result to the user, if
+    there is any problem.
+
+    :param Parent: the window showing the messages.
+    :param Path: full path to the database file.
+    :return: True if the database can be opened, False otherwise.
+    """
+    Error, Warning = Check_Database_File(Path)
+    if Error:
+        QMessageBox.critical(Parent, "Unable to Open Database!", Error)
+        return False
+    if Warning:
+        QMessageBox.warning(Parent, "Older Database", Warning)
+    return True
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
 
 class WelcomePage(QMainWindow):
     """
@@ -257,7 +280,11 @@ class NewDatabaseInputs(QMainWindow):
         if len(FileName) < 3: 
             QMessageBox.warning(self, "Warning", "Database name should contain at least 3 characters!")
             return
-        # Printing a success message and save the project locations. 
+        # A database with this name is opened instead of creating a new one, so check it first.
+        if os.path.isfile(os.path.join(SaveDirectory, FileName + '.db')):
+            if not Can_Open_Database(self, os.path.join(SaveDirectory, FileName + '.db')):
+                return
+        # Printing a success message and save the project locations.
         QMessageBox.information(self, "Success", f"Database '{FileName + '.db'}' created successfully at " + 
                                                  f"'{SaveDirectory}'.")
         # Save the results. 
@@ -385,8 +412,12 @@ class LoadDatabaseInputs(QMainWindow):
             FileNameNoExt  = os.path.splitext(FileName)[0]
             # Check if file is available. 
             if os.path.isfile(os.path.join(Directory, FileName)):
-                # File was available and select the file. 
-                # Freeze the main window. 
+                # File was available and select the file.
+                # Check the file, and stay on this window if it cannot be opened.
+                if not Can_Open_Database(self, os.path.join(Directory, FileName)):
+                    self.RecentFilesDropDown.setCurrentIndex(0)
+                    return
+                # Freeze the main window.
                 self.setEnabled(False)
                 # Update the output.
                 self.Output.setPlainText(f">>> File name: {FileNameNoExt}\n>>> Directory: {Directory}")
@@ -428,9 +459,12 @@ class LoadDatabaseInputs(QMainWindow):
                                                    "Database files (*.db *.db3);;All Files (*)")
         # If a file is selected by the user, update the Input_SavePath.
         if FilePath:
-            # Freeze the main window. 
+            # Check the file, and stay on this window if it cannot be opened.
+            if not Can_Open_Database(self, FilePath):
+                return
+            # Freeze the main window.
             self.setEnabled(False)
-            # Get the directory and file name. 
+            # Get the directory and file name.
             Directory = os.path.dirname(FilePath)
             FileName  = os.path.basename(FilePath)
             FileNameNoExt = os.path.splitext(FileName)[0]

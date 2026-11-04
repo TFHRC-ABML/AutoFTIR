@@ -6,7 +6,9 @@
 
 # Importing the required libraries.
 import os
+import re
 import sys
+import math
 import sqlite3
 import itertools
 import numpy as np
@@ -18,9 +20,10 @@ from openpyxl.drawing.image import Image
 from matplotlib import cm
 from matplotlib.colors import to_hex, LinearSegmentedColormap
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTableWidget, QTableWidgetItem, QGroupBox,
-                             QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QMessageBox, QLabel, QFormLayout, 
-                             QComboBox, QPlainTextEdit, QInputDialog, QFileDialog)
-from PyQt5.QtGui import QFont, QBrush, QColor
+                             QHBoxLayout, QVBoxLayout, QPushButton, QWidget, QMessageBox, QLabel, QFormLayout,
+                             QComboBox, QPlainTextEdit, QInputDialog, QFileDialog, QDialog, QCheckBox, QScrollArea,
+                             QGridLayout)
+from PyQt5.QtGui import QFont, QBrush, QColor, QFontMetrics
 from PyQt5.QtCore import Qt
 from scripts.Sub02_CreateNewSQLTable import Get_DB_SummaryData, Get_Identifier_Combinations
 from scripts.Sub04_FTIR_Analysis_Functions import Binary_to_Array
@@ -30,6 +33,31 @@ Reds = cm.get_cmap('Reds', 256)             # Get the "reds" colormap.
 # Clip at 0.85 to prevent excessive dark red colors.
 New = Reds(np.linspace(0, 0.75, 256))
 Custom_cmap = LinearSegmentedColormap.from_list("custom_reds", New)
+
+
+def Get_Button_Style(Color, HoverColor):
+    """
+    This function generates the rounded style of the buttons in the program, for the given colors.
+
+    :param Color: the background color of the button.
+    :param HoverColor: the background color when the mouse is over the button.
+    :return: the style sheet of the button.
+    """
+    Shape = "border: 1px solid #B0B0B0; border-radius: 8px; padding: 6px 12px;"
+    return f"""
+        QPushButton:enabled {{background-color: {Color}; color: #000; {Shape}}}
+        QPushButton:disabled {{background-color: #dcdcdc; color: #808080; {Shape}}}
+        QPushButton:hover {{background-color: {HoverColor}; color: #000; {Shape}}}
+        QPushButton:pressed {{background-color: gray; color: #000; {Shape}}}
+        """
+
+
+# The button styles of the popup windows, with the same meaning of the colors as on the pages of the program.
+Dialog_Button_Style = {
+    "General": Get_Button_Style("#DCECF9", "lightgray"),    # Neutral actions, such as Cancel, Browse, and Move Up.
+    "Accept": Get_Button_Style("#93E9BE", "#56C28B"),       # Carrying out the action, such as Apply, Merge, and OK.
+    "Modify": Get_Button_Style("#F2E394", "#E0D57D"),       # Changing what exists, such as Remove Selected.
+}
 
 
 class DB_ReviewPage(QMainWindow):
@@ -47,55 +75,117 @@ class DB_ReviewPage(QMainWindow):
         self.DB_Folder = DB_Folder  # Directory at which the database is saved.
         self.stack = stack
         self.shared_data = shared_data
-        self.ColumnNames = ['id', 'ID-number', 'Lab Aging', 'Rep #',
-                            'ICO (Decon)', 'ISO (Decon)',
-                            'ICO (base)', 'ICO (tang)', 'ISO (base)', 'ISO (tang)',
-                            'Carbonyl Peak loc (1/cm)', 'Sulfoxide Peak loc (1/cm)',
-                            'Aliphatic Peak loc 1 (1/cm)', 'Aliphatic Peak loc 2 (1/cm)',
-                            'Carbonyl Peak val', 'Sulfoxide Peak val',
-                            'Aliphatic Peak val 1', 'Aliphatic Peak val 2',
-                            'Carbonyl Area (base)', 'Sulfoxide Area (base)', 'Aliphatic Area (base)',
-                            'Carbonyl Area (tang)', 'Sulfoxide Area (tang)', 'Aliphatic Area (tang)',
-                            'Carbonyl Xmin', 'Carbonyl Xmax',
-                            'Sulfoxide Xmin', 'Sulfoxide Xmax',
-                            'Aliphatic Xmin', 'Aliphatic Xmax']
-        self.SQL_ColumnNames = [
-            'id', 'Bnumber', 'Lab_Aging', 'RepNumber',
+        # "AllColumns" is the master list of every selectable (non-BLOB) DB column, as (SQL name, display label)
+        #   tuples, in the fixed order used both for display and for the "Select Columns" dialog. "id", "Bnumber",
+        #   "Lab_Aging", and "RepNumber" MUST stay the first four entries: several other functions (e.g.
+        #   Function_Button_Delete_Record, Check_Row_Selection) assume the selected row's id/Bnumber/Lab_Aging/
+        #   RepNumber sit at fixed table columns 0-3.
+        self.AllColumns = [
+            ('id', 'id'), ('Bnumber', 'ID-number'), ('Lab_Aging', 'Lab Aging'), ('RepNumber', 'Rep #'),
+            ('Deconv_ICO', 'ICO (Decon)'), ('Deconv_ISO', 'ISO (Decon)'),
+            ('ICO_Baseline', 'ICO (base)'), ('ICO_Tangential', 'ICO (tang)'),
+            ('ISO_Baseline', 'ISO (base)'), ('ISO_Tangential', 'ISO (tang)'),
+            ('Carbonyl_Peak_Wavenumber', 'Carbonyl Peak loc (1/cm)'),
+            ('Sulfoxide_Peak_Wavenumber', 'Sulfoxide Peak loc (1/cm)'),
+            ('Aliphatic_Peak_Wavenumber_1', 'Aliphatic Peak loc 1 (1/cm)'),
+            ('Aliphatic_Peak_Wavenumber_2', 'Aliphatic Peak loc 2 (1/cm)'),
+            ('Carbonyl_Peak_Absorption', 'Carbonyl Peak val'), ('Sulfoxide_Peak_Absorption', 'Sulfoxide Peak val'),
+            ('Aliphatic_Peak_Absorption_1', 'Aliphatic Peak val 1'),
+            ('Aliphatic_Peak_Absorption_2', 'Aliphatic Peak val 2'),
+            ('Carbonyl_Area_Baseline', 'Carbonyl Area (base)'), ('Sulfoxide_Area_Baseline', 'Sulfoxide Area (base)'),
+            ('Aliphatic_Area_Baseline', 'Aliphatic Area (base)'),
+            ('Carbonyl_Area_Tangential', 'Carbonyl Area (tang)'),
+            ('Sulfoxide_Area_Tangential', 'Sulfoxide Area (tang)'),
+            ('Aliphatic_Area_Tangential', 'Aliphatic Area (tang)'),
+            ('Carbonyl_Min_Wavenumber', 'Carbonyl Xmin'), ('Carbonyl_Max_Wavenumber', 'Carbonyl Xmax'),
+            ('Sulfoxide_Min_Wavenumber', 'Sulfoxide Xmin'), ('Sulfoxide_Max_Wavenumber', 'Sulfoxide Xmax'),
+            ('Aliphatic_Min_Wavenumber', 'Aliphatic Xmin'), ('Aliphatic_Max_Wavenumber', 'Aliphatic Xmax'),
+            ('FileName', 'File Name'), ('FileDirectory', 'File Directory'), ('IsOutlier', 'Is Outlier?'),
+            ('Baseline_Adjustment_Method', 'Baseline Method'),
+            ('ALS_Lambda', 'ALS λ'), ('ALS_Ratio', 'ALS ρ'), ('ALS_NumIter', 'ALS N Iter'),
+            ('Normalization_Method', 'Normalization Method'), ('Normalization_Coeff', 'Normalization Coeff')]
+        # Columns the user is not allowed to hide from the "Select Columns" dialog.
+        self.AlwaysShownSQL = ['id', 'Bnumber', 'Lab_Aging', 'RepNumber']
+        # Default columns shown when the page is first created.
+        DefaultSQL = ['id', 'Bnumber', 'Lab_Aging', 'RepNumber', 'Deconv_ICO', 'Deconv_ISO',
+                      'ICO_Baseline', 'ISO_Baseline',
+                      'Carbonyl_Peak_Wavenumber', 'Sulfoxide_Peak_Wavenumber',
+                      'Aliphatic_Peak_Wavenumber_1', 'Aliphatic_Peak_Wavenumber_2']
+        self.SQL_ColumnNames = [SQLName for SQLName, _ in self.AllColumns if SQLName in DefaultSQL]
+        self.ColumnNames = [Label for SQLName, Label in self.AllColumns if SQLName in DefaultSQL]
+        # These two parallel lists define which raw FTIR columns get aggregated into "FTIR_Analysis_DB", and their
+        #   display labels. They are the single source of truth for both "Rerun_Database_Analysis" (which builds the
+        #   table) and "AllColumnsAnalysis" below (which the Analysis-panel "Select Columns" dialog is built from),
+        #   so the two can never drift out of sync.
+        self.AnalysisSourceColumns = [
+            'id', 'Bnumber', 'Lab_Aging', 'RepNumber', 'IsOutlier',
             'Deconv_ICO', 'Deconv_ISO',
-            'ICO_Baseline', 'ICO_Tangential', 'ISO_Baseline', 'ISO_Tangential',
+            'ICO_Baseline', 'ISO_Baseline',
+            'Carbonyl_Area_Baseline', 'Sulfoxide_Area_Baseline', 'Aliphatic_Area_Baseline',
+            'ICO_Tangential', 'ISO_Tangential',
+            'Carbonyl_Area_Tangential', 'Sulfoxide_Area_Tangential', 'Aliphatic_Area_Tangential',
             'Carbonyl_Peak_Wavenumber', 'Sulfoxide_Peak_Wavenumber',
             'Aliphatic_Peak_Wavenumber_1', 'Aliphatic_Peak_Wavenumber_2',
             'Carbonyl_Peak_Absorption', 'Sulfoxide_Peak_Absorption',
             'Aliphatic_Peak_Absorption_1', 'Aliphatic_Peak_Absorption_2',
-            'Carbonyl_Area_Baseline',   'Sulfoxide_Area_Baseline',   'Aliphatic_Area_Baseline',
-            'Carbonyl_Area_Tangential', 'Sulfoxide_Area_Tangential', 'Aliphatic_Area_Tangential',
             'Carbonyl_Min_Wavenumber', 'Carbonyl_Max_Wavenumber',
             'Sulfoxide_Min_Wavenumber', 'Sulfoxide_Max_Wavenumber',
             'Aliphatic_Min_Wavenumber', 'Aliphatic_Max_Wavenumber']
+        self.AnalysisSourceLabels = [
+            'DB id', 'ID-number', 'Laboratory Aging', 'Repetition Number', 'Is Outlier?',
+            'ICO (deconvolution)', 'ISO (deconvolution)',
+            'ICO (baseline integration)', 'ISO (baseline integration)',
+            'Carbonyl Area (baseline integration)', 'Sulfoxide Area (baseline integration)',
+            'Aliphatic Area (baseline integration)',
+            'ICO (tangential integration)', 'ISO (tangential integration)',
+            'Carbonyl Area (tangential integration)', 'Sulfoxide Area (tangential integration)',
+            'Aliphatic Area (tangential integration)',
+            'Carbonyl Peak Wavenumber (cm⁻¹)', 'Sulfoxide Peak Wavenumber (cm⁻¹)',
+            'Aliphatic Peak Wavenumber 1 (cm⁻¹)', 'Aliphatic Peak Wavenumber 2 (cm⁻¹)',
+            'Carbonyl Peak Absorption', 'Sulfoxide Peak Absorption',
+            'Aliphatic Peak Absorption 1', 'Aliphatic Peak Absorption 2',
+            'Carbonyl Min Wavenumber', 'Carbonyl Max Wavenumber',
+            'Sulfoxide Min Wavenumber', 'Sulfoxide Max Wavenumber',
+            'Aliphatic Min Wavenumber', 'Aliphatic Max Wavenumber']
+        # Every column that actually exists in "FTIR_Analysis_DB": 'ID-number', 'Laboratory Aging', 'Number of Data',
+        #   plus Mean/Std/COV/Min/Max/Data for each of the 26 aggregated metrics above (159 columns total; none are
+        #   BLOB, since this table only ever stores aggregated numbers and pipe-delimited strings of the raw values).
+        #   For this table the SQL column name and the display label are identical, unlike "AllColumns" above.
+        AnalysisColumnNames = ['ID-number', 'Laboratory Aging', 'Number of Data']
+        for lbl in self.AnalysisSourceLabels[5:]:
+            for metric in ['Mean of ', 'Std of ', 'COV of ', 'Min of ', 'Max of ']:
+                AnalysisColumnNames.append(metric + lbl)
+            AnalysisColumnNames.append(lbl + ' Data')
+        self.AllColumnsAnalysis = [(name, name) for name in AnalysisColumnNames]
+        self.AlwaysShownAnalysisSQL = ['ID-number', 'Laboratory Aging', 'Number of Data']
+        # Default columns shown on the Analysis Results table.
         self.ColumnNamesAnalysis = [
-            'ID-number', 'Laboratory Aging', 'Number of Data', 
-            'Mean of ICO (deconvolution)', 'Std of ICO (deconvolution)', 'COV of ICO (deconvolution)', 
-            'Mean of ICO (baseline integration)', 'Std of ICO (baseline integration)', 
-            'COV of ICO (baseline integration)', 
-            'Mean of ICO (tangential integration)', 'Std of ICO (tangential integration)', 
-            'COV of ICO (tangential integration)', 
-            'Mean of ISO (deconvolution)', 'Std of ISO (deconvolution)', 'COV of ISO (deconvolution)', 
-            'Mean of ISO (baseline integration)', 'Std of ISO (baseline integration)', 
-            'COV of ISO (baseline integration)', 
-            'Mean of ISO (tangential integration)', 'Std of ISO (tangential integration)', 
-            'COV of ISO (tangential integration)', 
-            'Mean of Aliphatic Area (baseline integration)', 'Std of Aliphatic Area (baseline integration)', 
-            'COV of Aliphatic Area (baseline integration)', 
-            'Mean of Aliphatic Area (tangential integration)', 'Std of Aliphatic Area (tangential integration)', 
-            'COV of Aliphatic Area (tangential integration)', 
-            'Mean of Carbonyl Peak Wavenumber (cm⁻¹)', 'Std of Carbonyl Peak Wavenumber (cm⁻¹)', 
-            'COV of Carbonyl Peak Wavenumber (cm⁻¹)', 
-            'Mean of Sulfoxide Peak Wavenumber (cm⁻¹)', 'Std of Sulfoxide Peak Wavenumber (cm⁻¹)', 
-            'COV of Sulfoxide Peak Wavenumber (cm⁻¹)', 
-            'Mean of Carbonyl Peak Absorption', 'Std of Carbonyl Peak Absorption', 
-            'COV of Carbonyl Peak Absorption', 
-            'Mean of Sulfoxide Peak Absorption', 'Std of Sulfoxide Peak Absorption', 
+            'ID-number', 'Laboratory Aging', 'Number of Data',
+            'Mean of ICO (deconvolution)', 'Std of ICO (deconvolution)', 'COV of ICO (deconvolution)',
+            'Mean of ICO (baseline integration)', 'Std of ICO (baseline integration)',
+            'COV of ICO (baseline integration)',
+            'Mean of ICO (tangential integration)', 'Std of ICO (tangential integration)',
+            'COV of ICO (tangential integration)',
+            'Mean of ISO (deconvolution)', 'Std of ISO (deconvolution)', 'COV of ISO (deconvolution)',
+            'Mean of ISO (baseline integration)', 'Std of ISO (baseline integration)',
+            'COV of ISO (baseline integration)',
+            'Mean of ISO (tangential integration)', 'Std of ISO (tangential integration)',
+            'COV of ISO (tangential integration)',
+            'Mean of Aliphatic Area (baseline integration)', 'Std of Aliphatic Area (baseline integration)',
+            'COV of Aliphatic Area (baseline integration)',
+            'Mean of Aliphatic Area (tangential integration)', 'Std of Aliphatic Area (tangential integration)',
+            'COV of Aliphatic Area (tangential integration)',
+            'Mean of Carbonyl Peak Wavenumber (cm⁻¹)', 'Std of Carbonyl Peak Wavenumber (cm⁻¹)',
+            'COV of Carbonyl Peak Wavenumber (cm⁻¹)',
+            'Mean of Sulfoxide Peak Wavenumber (cm⁻¹)', 'Std of Sulfoxide Peak Wavenumber (cm⁻¹)',
+            'COV of Sulfoxide Peak Wavenumber (cm⁻¹)',
+            'Mean of Carbonyl Peak Absorption', 'Std of Carbonyl Peak Absorption',
+            'COV of Carbonyl Peak Absorption',
+            'Mean of Sulfoxide Peak Absorption', 'Std of Sulfoxide Peak Absorption',
             'COV of Sulfoxide Peak Absorption',]
+        # Tracks which of the two views (Database vs. Analysis Results) the table is currently showing, since both
+        #   views share the same table/filter widgets but use different columns and query targets.
+        self.InAnalysisView = False
         self.IdentifierCombs = Get_Identifier_Combinations(self.cursor)
         self.PushButtonStyle = {
             "General": """
@@ -214,6 +304,10 @@ class DB_ReviewPage(QMainWindow):
         self.Table.setHorizontalHeaderLabels(self.ColumnNames)
         self.Table.setSelectionBehavior(self.Table.SelectRows)
         self.Table.setSelectionMode(self.Table.SingleSelection)
+        # Clicking a column header sorts the rows by that column, and clicking it again reverses the order.
+        self.Reset_Table_Sort()
+        self.Table.setSortingEnabled(True)
+        self.Fit_Columns_To_Content()
         # Placing the table in the window.
         Section02_Layout.addWidget(self.Label_NumFetchedRows)
         Section02_Layout.addWidget(self.Table)
@@ -327,10 +421,80 @@ class DB_ReviewPage(QMainWindow):
         layout.addLayout(LeftLayout, 70)
         layout.addLayout(RightLayout, 30)
     # ------------------------------------------------------------------------------------------------------------------
-    def ShowEvent(self, event):
-        # Update the identifier combinations.
+    def showEvent(self, event):
+        # Refresh the identifier combinations and the B-number/Lab-Aging filter dropdowns' available options
+        #   whenever this page becomes visible, since records may have been added elsewhere since it was last
+        #   shown. (This was previously named "ShowEvent", capital S, which Qt never actually calls -- it was dead
+        #   code, and even if it had fired it would not have repopulated the dropdown widgets' own item lists, only
+        #   the backing "self.IdentifierCombs" DataFrame, so newly added B-numbers/aging levels never showed up in
+        #   the dropdowns without restarting the program.)
+        super().showEvent(event)
         self.IdentifierCombs = Get_Identifier_Combinations(self.cursor)
-        self.Function_Button_Fetch()
+        self.Refresh_Filter_Dropdowns()
+    # ------------------------------------------------------------------------------------------------------------------
+    def Refresh_Filter_Dropdowns(self):
+        """
+        Repopulates the B-number/Lab-Aging filter dropdowns from the latest "self.IdentifierCombs" (just refreshed
+        in "showEvent"), so B-numbers/aging levels added to the database after this page was first built actually
+        show up. Preserves the current selection (by text) where it is still valid, and leaves any already-fetched
+        table content untouched (signals are blocked throughout, so this never triggers
+        "Function_DropDown_Bnumber"/"Function_DropDown_LabAging"'s own table-resetting logic). Shared by both the
+        Database and Analysis Results views, since both filter on the same underlying B-numbers/aging levels.
+        """
+        CurrentBnumber = self.DropDown_Bnumber.currentText()
+        CurrentLabAging = self.DropDown_LabAging.currentText()
+        self.DropDown_Bnumber.blockSignals(True)
+        self.DropDown_Bnumber.clear()
+        self.DropDown_Bnumber.addItems(['Please Select...', 'All binders'] +
+                                       list(self.IdentifierCombs['Bnumber'].unique()))
+        BIdx = self.DropDown_Bnumber.findText(CurrentBnumber)
+        self.DropDown_Bnumber.setCurrentIndex(BIdx if BIdx >= 0 else 0)
+        self.DropDown_Bnumber.blockSignals(False)
+        self.DropDown_LabAging.blockSignals(True)
+        if self.DropDown_Bnumber.currentIndex() <= 0:
+            self.DropDown_LabAging.clear()
+            self.DropDown_LabAging.addItems(['All Aging Levels'])
+            self.DropDown_LabAging.setEnabled(False)
+        elif self.DropDown_Bnumber.currentIndex() == 1:
+            self.DropDown_LabAging.clear()
+            self.DropDown_LabAging.addItems(['All Aging Levels'] + list(self.IdentifierCombs['Lab_Aging'].unique()))
+            self.DropDown_LabAging.setEnabled(True)
+        else:
+            Bnumber = self.DropDown_Bnumber.currentText()
+            TempDF = self.IdentifierCombs[self.IdentifierCombs['Bnumber'] == Bnumber]
+            self.DropDown_LabAging.clear()
+            self.DropDown_LabAging.addItems(['All Aging Levels'] + list(TempDF['Lab_Aging'].unique()))
+            self.DropDown_LabAging.setEnabled(True)
+        LIdx = self.DropDown_LabAging.findText(CurrentLabAging)
+        self.DropDown_LabAging.setCurrentIndex(LIdx if LIdx >= 0 else 0)
+        self.DropDown_LabAging.blockSignals(False)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Refresh_After_Identifier_Change(self):
+        """
+        Updates this page after B-numbers or aging levels were changed in the database. The aggregated
+        "FTIR_Analysis_DB" table, if available, is rebuilt without asking, since it stores these values and would
+        otherwise stop matching the filter dropdowns. Then, the dropdowns, summary, and currently shown table are
+        refreshed. The table is emptied if the filtered B-number no longer exists.
+        """
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='FTIR_Analysis_DB'")
+        if self.cursor.fetchone() is not None:
+            try:
+                self.Rerun_Database_Analysis(AskUser=False)
+            except Exception as Err:
+                QMessageBox.warning(self, "Analysis Not Updated!",
+                                    f"The records were changed, but updating the aggregated analysis failed, so it "
+                                    f"still shows the previous values.\n\n{Err}")
+        self.IdentifierCombs = Get_Identifier_Combinations(self.cursor)
+        self.Refresh_Filter_Dropdowns()
+        self.Sync_Summary_Info()
+        if self.DropDown_Bnumber.currentIndex() > 0:
+            self.Function_Button_Fetch()
+        elif self.InAnalysisView:
+            self.cursor.execute(
+                f"SELECT {', '.join([f'[{col}]' for col in self.ColumnNamesAnalysis])} FROM FTIR_Analysis_DB")
+            self.Populate_Analysis_Table(self.cursor.fetchall())
+        else:
+            self.Reset_Table_Empty()
     # ------------------------------------------------------------------------------------------------------------------
     # Define the functions.
     def Sync_Summary_Info(self):
@@ -350,12 +514,7 @@ class DB_ReviewPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Function_DropDown_Bnumber(self):
         # First, empty the table.
-        self.Table.clearSelection()
-        self.Label_NumFetchedRows.setText('Number of fetched data (rows): 0')
-        self.Table.setRowCount(10)
-        for row_idx in range(10):
-            for col_idx in range(len(self.ColumnNames)):
-                self.Table.setItem(row_idx, col_idx, QTableWidgetItem(''))
+        self.Reset_Table_Empty()
         # Determine the state of the LabAging dropdown menu.
         if self.DropDown_Bnumber.currentIndex() == 0:
             # "Please select..." is selected.
@@ -384,14 +543,50 @@ class DB_ReviewPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Function_DropDown_LabAging(self):
         # Empty the table.
+        self.Reset_Table_Empty()
+    # ------------------------------------------------------------------------------------------------------------------
+    def Reset_Table_Empty(self):
+        """
+        Reset the table to its empty (10 blank rows) state, using whichever set of column headers is currently
+        appropriate: the Database review columns, or the Analysis Results columns.
+        """
+        Columns = self.ColumnNamesAnalysis if self.InAnalysisView else self.ColumnNames
+        self.Table.setSortingEnabled(False)
         self.Table.clearSelection()
         self.Label_NumFetchedRows.setText('Number of fetched data (rows): 0')
+        self.Table.setColumnCount(len(Columns))
+        self.Table.setHorizontalHeaderLabels(Columns)
         self.Table.setRowCount(10)
         for row_idx in range(10):
-            for col_idx in range(len(self.ColumnNames)):
-                self.Table.setItem(row_idx, col_idx, QTableWidgetItem(''))
+            for col_idx in range(len(Columns)):
+                self.Table.setItem(row_idx, col_idx, SortableTableItem('', None))
+        self.Table.setSortingEnabled(True)
+        self.Fit_Columns_To_Content()
+    # ------------------------------------------------------------------------------------------------------------------
+    def Reset_Table_Sort(self):
+        """
+        Clears the sorted column, so the rows show in the order they were fetched. This is needed whenever the table's
+        columns change, since the sorted column is remembered by its position only.
+        """
+        self.Table.horizontalHeader().setSortIndicator(-1, Qt.AscendingOrder)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Fit_Columns_To_Content(self, MaxColumnWidth=400):
+        """
+        Auto-fit every column's width to its header/content, so a header is never clipped and a column is never
+        needlessly wide, capped at "MaxColumnWidth" so a single very long cell (e.g. a raw "... Data" column of
+        pipe-delimited values on the Analysis panel) can't blow out the whole table's width.
+        """
+        self.Table.resizeColumnsToContents()
+        Header = self.Table.horizontalHeader()
+        for col in range(self.Table.columnCount()):
+            if Header.sectionSize(col) > MaxColumnWidth:
+                Header.resizeSection(col, MaxColumnWidth)
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Fetch(self):
+        # Dispatch to the Analysis-specific fetch when the Analysis Results view is currently showing.
+        if self.InAnalysisView:
+            self.Function_Button_Fetch_Analysis()
+            return
         # First, read the filters.
         self.Table.clearSelection()
         Bnumber = self.DropDown_Bnumber.currentText()
@@ -414,21 +609,154 @@ class DB_ReviewPage(QMainWindow):
                                     f"WHERE Bnumber = ? AND Lab_Aging = ?", (Bnumber, LabAging))
         # Get the rows.
         Rows = self.cursor.fetchall()
-        # Modify the table with the row value
+        # Modify the table with the row value. Sorting is off while filling, since it would move the rows meanwhile.
+        #   Turning it back on re-applies the current sorted column, if any.
         self.Label_NumFetchedRows.setText(
             f'Number of fetched data (rows): {len(Rows)}')
+        self.Table.setSortingEnabled(False)
         self.Table.setRowCount(len(Rows))
         for row_idx, row_data in enumerate(Rows):
             for col_idx, cell_data in enumerate(row_data):
                 if type(cell_data) == float:
-                    item = QTableWidgetItem(f'{cell_data:.4f}')
+                    item = SortableTableItem(f'{cell_data:.4f}', cell_data)
                 else:
-                    item = QTableWidgetItem(str(cell_data))
+                    item = SortableTableItem(str(cell_data), cell_data)
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 self.Table.setItem(row_idx, col_idx, item)
+        self.Table.setSortingEnabled(True)
+        self.Fit_Columns_To_Content()
         # Print the selection to the terminal.
         Msg = f'>>> "{len(Rows)}" rows found in the Database, for:\n>>>\tBnumber: {Bnumber}\n>>>\tAging: {LabAging}'
         self.Terminal.appendPlainText(Msg)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_Fetch_Analysis(self):
+        """
+        This function filters the aggregated "FTIR_Analysis_DB" table by the selected B-number and/or laboratory aging
+        level, mirroring "Function_Button_Fetch" (which does the same for the raw Database view).
+        """
+        self.Table.clearSelection()
+        Bnumber = self.DropDown_Bnumber.currentText()
+        LabAging = self.DropDown_LabAging.currentText()
+        ColSelect = ', '.join([f'[{col}]' for col in self.ColumnNamesAnalysis])
+        if self.DropDown_Bnumber.currentIndex() == 0:
+            return
+        elif self.DropDown_Bnumber.currentIndex() == 1:         # For all binders.
+            if self.DropDown_LabAging.currentIndex() == 0:    # For all aging levels.
+                self.cursor.execute(f"SELECT {ColSelect} FROM FTIR_Analysis_DB")
+            else:
+                self.cursor.execute(f"SELECT {ColSelect} FROM FTIR_Analysis_DB WHERE [Laboratory Aging] = ?",
+                                    (LabAging,))
+        else:       # For a specific binder.
+            if self.DropDown_LabAging.currentIndex() == 0:    # for all aging levels.
+                self.cursor.execute(f"SELECT {ColSelect} FROM FTIR_Analysis_DB WHERE [ID-number] = ?",
+                                    (Bnumber,))
+            else:
+                self.cursor.execute(f"SELECT {ColSelect} FROM FTIR_Analysis_DB " +
+                                    f"WHERE [ID-number] = ? AND [Laboratory Aging] = ?", (Bnumber, LabAging))
+        # Get the rows and fill the table.
+        Rows = self.cursor.fetchall()
+        self.Populate_Analysis_Table(Rows)
+        # Print the selection to the terminal.
+        Msg = (f'>>> "{len(Rows)}" rows found in the Analysis DB, for:\n>>>\tBnumber: {Bnumber}\n' +
+               f'>>>\tAging: {LabAging}')
+        self.Terminal.appendPlainText(Msg)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Populate_Analysis_Table(self, Rows):
+        """
+        Fill self.Table with the given rows from FTIR_Analysis_DB, using self.ColumnNamesAnalysis as the headers, with
+        the COV columns colorized based on their value.
+        """
+        self.Table.setSortingEnabled(False)
+        self.Table.clearContents()
+        self.Table.clearSelection()
+        self.Table.setColumnCount(len(self.ColumnNamesAnalysis))
+        self.Table.setHorizontalHeaderLabels(self.ColumnNamesAnalysis)
+        self.Table.setRowCount(len(Rows))
+        for row_idx, row_data in enumerate(Rows):
+            for col_idx, cell_data in enumerate(row_data):
+                # Identify COV columns by name (not a fixed index), since the user can now select an arbitrary
+                #   subset/order of columns via the "Select Columns" dialog.
+                if self.ColumnNamesAnalysis[col_idx].startswith('COV of '):
+                    try:
+                        item = SortableTableItem(f'{cell_data*100:.1f}%', cell_data)
+                        ColorNumber = Get_Color_4_COV(cell_data)
+                        item.setBackground(QBrush(QColor(ColorNumber)))
+                    except:
+                        item = SortableTableItem('None', None)
+                elif type(cell_data) == float:
+                    item = SortableTableItem(f'{cell_data:.4f}', cell_data)
+                else:
+                    item = SortableTableItem(str(cell_data), cell_data)
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                self.Table.setItem(row_idx, col_idx, item)
+        self.Table.setSortingEnabled(True)
+        self.Fit_Columns_To_Content()
+        self.Label_NumFetchedRows.setText(f'Number of fetched data (rows): {len(Rows)}')
+    # ------------------------------------------------------------------------------------------------------------------
+    def Open_Column_Selector_Dialog(self):
+        """
+        This function opens the "Select Columns" dialog for the Database table (triggered from the "Edit" menu), and
+        applies the user's selection: it updates the table's headers/columns, then either re-fetches the currently
+        filtered rows, or resets to the empty state, so the table always reflects the previous selection/filter.
+        """
+        # Do not allow this while the "Analysis Results" view is showing, since it uses a different, unrelated set of
+        #   columns on the same table.
+        if self.InAnalysisView:
+            QMessageBox.information(self, "Switch to Database View",
+                                    'Please switch back to the Database view (click "Database Page") before ' +
+                                    'selecting columns for the review table.')
+            return
+        # Open the dialog, seeded with the currently selected columns.
+        Dialog = SelectColumnsDialog(self.AllColumns, self.AlwaysShownSQL, self.SQL_ColumnNames, self)
+        if Dialog.exec_() != QDialog.Accepted:
+            return
+        # Apply the new selection (re-derive both lists from the master order, regardless of what order the dialog
+        #   happened to return the selection in).
+        Selected = set(Dialog.Get_Selected_Columns())
+        self.SQL_ColumnNames = [SQLName for SQLName, _ in self.AllColumns if SQLName in Selected]
+        self.ColumnNames = [Label for SQLName, Label in self.AllColumns if SQLName in Selected]
+        # Update the table headers/column count.
+        self.Reset_Table_Sort()
+        self.Table.clearContents()
+        self.Table.clearSelection()
+        self.Table.setColumnCount(len(self.ColumnNames))
+        self.Table.setHorizontalHeaderLabels(self.ColumnNames)
+        # Refresh the rows: re-fetch if a filter is currently active, otherwise reset to the empty state.
+        if self.DropDown_Bnumber.currentIndex() > 0:
+            self.Function_Button_Fetch()
+        else:
+            self.Reset_Table_Empty()
+    # ------------------------------------------------------------------------------------------------------------------
+    def Open_Column_Selector_Dialog_Analysis(self):
+        """
+        This function opens the "Select Columns" dialog for the Analysis Results table (triggered from the "Edit"
+        menu), and applies the user's selection: it updates the table's headers/columns, then either re-fetches the
+        currently filtered rows, or re-fetches everything unfiltered, so the table always reflects the previous
+        selection/filter (the Analysis view shows all rows by default, unlike the empty-by-default Database view).
+        """
+        # This only makes sense while the "Analysis Results" view is showing.
+        if not self.InAnalysisView:
+            QMessageBox.information(self, "Switch to Analysis View",
+                                    'Please switch to the Analysis Results view (click "Analysis Results Page") ' +
+                                    'before selecting columns for that table.')
+            return
+        # Open the dialog, seeded with the currently selected columns.
+        Dialog = SelectColumnsDialog(self.AllColumnsAnalysis, self.AlwaysShownAnalysisSQL, self.ColumnNamesAnalysis,
+                                     self)
+        if Dialog.exec_() != QDialog.Accepted:
+            return
+        # Apply the new selection (re-derived in master order, same as the Database column picker).
+        Selected = set(Dialog.Get_Selected_Columns())
+        self.ColumnNamesAnalysis = [Name for Name, _ in self.AllColumnsAnalysis if Name in Selected]
+        self.Reset_Table_Sort()
+        # Refresh the rows with the new columns: re-fetch if a filter is currently active, otherwise show everything
+        #   unfiltered again (Populate_Analysis_Table takes care of the headers/column count either way).
+        if self.DropDown_Bnumber.currentIndex() > 0:
+            self.Function_Button_Fetch_Analysis()
+        else:
+            self.cursor.execute(
+                f"SELECT {', '.join([f'[{col}]' for col in self.ColumnNamesAnalysis])} FROM FTIR_Analysis_DB")
+            self.Populate_Analysis_Table(self.cursor.fetchall())
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Go2Main(self):
         """
@@ -438,10 +766,7 @@ class DB_ReviewPage(QMainWindow):
         self.Table.clearSelection()
         self.DropDown_Bnumber.setCurrentIndex(0)
         self.DropDown_LabAging.setCurrentIndex(0)
-        self.Table.setRowCount(10)
-        for row_idx in range(10):
-            for col_idx in range(len(self.ColumnNames)):
-                self.Table.setItem(row_idx, col_idx, QTableWidgetItem(''))
+        self.Reset_Table_Empty()
         # Move to the main page.
         self.stack.setCurrentIndex(0)
     # ------------------------------------------------------------------------------------------------------------------
@@ -456,15 +781,17 @@ class DB_ReviewPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Button_Analysis(self):
         # First check which view needed to be shown.
-        if self.Button_Analysis.text() == "Analysis Results Page":
+        if not self.InAnalysisView:
             # First of all, check if the analysis is available or user may want to rerun the analysis.
             self.Rerun_Database_Analysis()
-            # Prepare the page.
-            self.DropDown_Bnumber.setEnabled(False)
+            # Switch the internal view state first, so the dropdown/table helpers triggered below (e.g. resetting the
+            #   LabAging dropdown) use the Analysis column set instead of the Database one.
+            self.InAnalysisView = True
+            self.Reset_Table_Sort()
+            # Prepare the page. The B-number/Aging filters and "Fetch data" stay enabled, so the user can filter the
+            #   Analysis results the same way they filter the raw Database records.
             self.DropDown_Bnumber.setCurrentIndex(0)
-            self.DropDown_LabAging.setEnabled(False)
             self.DropDown_LabAging.setCurrentIndex(0)
-            self.Button_Fetch.setEnabled(False)
             self.Button_Modify.setEnabled(False)
             self.Button_Delete_Record.setEnabled(False)
             self.Button_Export_Record.setEnabled(False)
@@ -473,37 +800,19 @@ class DB_ReviewPage(QMainWindow):
             self.Button_Go2Main.setEnabled(False)
             self.Terminal.appendPlainText(
                 f"\n>>> Moving to the Analysis of Results view.")
-            # Get the results from the DB.
+            # Get the results from the DB (unfiltered, showing everything by default).
             self.cursor.execute(
                 f"SELECT {', '.join([f'[{col}]' for col in self.ColumnNamesAnalysis])} FROM FTIR_Analysis_DB")
             Rows = self.cursor.fetchall()
-            # Clear the table.
-            self.Table.clearContents()
-            self.Table.clearSelection()
-            self.Table.setColumnCount(len(self.ColumnNamesAnalysis))
-            self.Table.setHorizontalHeaderLabels(self.ColumnNamesAnalysis)
-            self.Table.setRowCount(len(Rows))
             # Fill the table with the new analysis results.
-            for row_idx, row_data in enumerate(Rows):
-                for col_idx, cell_data in enumerate(row_data):
-                    if col_idx in [5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38]:
-                        try:
-                            item = QTableWidgetItem(f'{cell_data*100:.1f}%')
-                            ColorNumber = Get_Color_4_COV(cell_data)
-                            item.setBackground(QBrush(QColor(ColorNumber)))
-                        except:
-                            item = QTableWidgetItem('None')
-                    elif type(cell_data) == float:
-                        item = QTableWidgetItem(f'{cell_data:.4f}')
-                    else:
-                        item = QTableWidgetItem(str(cell_data))
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                    self.Table.setItem(row_idx, col_idx, item)
+            self.Populate_Analysis_Table(Rows)
             # Change the text on the button.
             self.Button_Analysis.setText('Database Page')
         else:
+            # Switch the internal view state first.
+            self.InAnalysisView = False
+            self.Reset_Table_Sort()
             # Show the database content.
-            self.DropDown_Bnumber.setEnabled(True)
             self.DropDown_Bnumber.setCurrentIndex(0)
             self.Button_Modify.setEnabled(True)
             self.Button_Delete_Record.setEnabled(True)
@@ -511,14 +820,9 @@ class DB_ReviewPage(QMainWindow):
             self.Button_Export_Database.setEnabled(True)
             self.Button_Export_Analysis.setEnabled(True)
             self.Button_Go2Main.setEnabled(True)
-            self.Button_Fetch.setEnabled(True)
             self.Terminal.appendPlainText(f"\n>>> Moving to the DB view.")
             # Clear the table.
-            self.Table.clearContents()
-            self.Table.clearSelection()
-            self.Table.setColumnCount(len(self.ColumnNames))
-            self.Table.setHorizontalHeaderLabels(self.ColumnNames)
-            self.Table.setRowCount(10)
+            self.Reset_Table_Empty()
             # change the name.
             self.Button_Analysis.setText('Analysis Results Page')
     # ------------------------------------------------------------------------------------------------------------------
@@ -1069,15 +1373,15 @@ class DB_ReviewPage(QMainWindow):
             # Return the row index and database "id" value correspond to the selected row. 
             return idx, int(ID.text())
     # ------------------------------------------------------------------------------------------------------------------
-    def Rerun_Database_Analysis(self):
+    def Rerun_Database_Analysis(self, AskUser=True):
         """
-        This function first asks user if the analysis for combining the results should be re-run and do the analysis if 
-        neccessary. Then, it will overwrite the results in the database. 
+        This function first asks user if the analysis for combining the results should be re-run (unless "AskUser" is
+        False) and do the analysis if neccessary. Then, it will overwrite the results in the database.
         """
-        # First, check if the combined result table is available in the SQL database. 
+        # First, check if the combined result table is available in the SQL database.
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
         TableNames = [name[0] for name in self.cursor.fetchall()]
-        if 'FTIR_Analysis_DB' in TableNames:
+        if AskUser and 'FTIR_Analysis_DB' in TableNames:
             # Analysis is available. Ask the user to re-run or not. 
             Msg  = f'Do you want to update the analysis for aggregation of the available FTIR results?'
             Question = QMessageBox()
@@ -1091,38 +1395,13 @@ class DB_ReviewPage(QMainWindow):
                 pass
             else:
                 return
-        # If user decided to re-run the analysis. 
-        # Now, get the latest values of the required parameters from the database. 
-        Column2Fetch = [            
-            'id', 'Bnumber', 'Lab_Aging', 'RepNumber', 'IsOutlier',
-            'Deconv_ICO', 'Deconv_ISO',
-            'ICO_Baseline', 'ISO_Baseline',
-            'Carbonyl_Area_Baseline', 'Sulfoxide_Area_Baseline', 'Aliphatic_Area_Baseline',
-            'ICO_Tangential', 'ISO_Tangential', 
-            'Carbonyl_Area_Tangential', 'Sulfoxide_Area_Tangential', 'Aliphatic_Area_Tangential',
-            'Carbonyl_Peak_Wavenumber', 'Sulfoxide_Peak_Wavenumber',
-            'Aliphatic_Peak_Wavenumber_1', 'Aliphatic_Peak_Wavenumber_2',
-            'Carbonyl_Peak_Absorption', 'Sulfoxide_Peak_Absorption',
-            'Aliphatic_Peak_Absorption_1', 'Aliphatic_Peak_Absorption_2',
-            'Carbonyl_Min_Wavenumber', 'Carbonyl_Max_Wavenumber',
-            'Sulfoxide_Min_Wavenumber', 'Sulfoxide_Max_Wavenumber',
-            'Aliphatic_Min_Wavenumber', 'Aliphatic_Max_Wavenumber']
-        Labels = [
-            'DB id', 'ID-number', 'Laboratory Aging', 'Repetition Number', 'Is Outlier?',
-            'ICO (deconvolution)', 'ISO (deconvolution)', 
-            'ICO (baseline integration)', 'ISO (baseline integration)',
-            'Carbonyl Area (baseline integration)', 'Sulfoxide Area (baseline integration)',
-            'Aliphatic Area (baseline integration)',
-            'ICO (tangential integration)', 'ISO (tangential integration)',
-            'Carbonyl Area (tangential integration)', 'Sulfoxide Area (tangential integration)',
-            'Aliphatic Area (tangential integration)',
-            'Carbonyl Peak Wavenumber (cm⁻¹)', 'Sulfoxide Peak Wavenumber (cm⁻¹)',
-            'Aliphatic Peak Wavenumber 1 (cm⁻¹)', 'Aliphatic Peak Wavenumber 2 (cm⁻¹)',
-            'Carbonyl Peak Absorption', 'Sulfoxide Peak Absorption',
-            'Aliphatic Peak Absorption 1', 'Aliphatic Peak Absorption 2',
-            'Carbonyl Min Wavenumber', 'Carbonyl Max Wavenumber',
-            'Sulfoxide Min Wavenumber', 'Sulfoxide Max Wavenumber', 
-            'Aliphatic Min Wavenumber', 'Aliphatic Max Wavenumber']
+        # If user decided to re-run the analysis.
+        # Now, get the latest values of the required parameters from the database. "Column2Fetch"/"Labels" are the
+        #   shared "self.AnalysisSourceColumns"/"self.AnalysisSourceLabels" (see __init__) so that the columns this
+        #   function actually generates in "FTIR_Analysis_DB" can never drift out of sync with "self.AllColumnsAnalysis"
+        #   (the master list the "Select Columns" dialog for the Analysis panel is built from).
+        Column2Fetch = self.AnalysisSourceColumns
+        Labels = self.AnalysisSourceLabels
         self.cursor.execute(f"SELECT {', '.join(Column2Fetch)} FROM FTIR")
         data = self.cursor.fetchall()
         data = pd.DataFrame(data, columns=Column2Fetch)         # Convert the retrieved data to DataFrame. 
@@ -1178,6 +1457,110 @@ class DB_ReviewPage(QMainWindow):
         # Print the message to the output terminal. 
         Msg = f'>>> The analysis for aggregation of the available FTIR results is successfully performed!\n'
         self.Terminal.appendPlainText(Msg)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+class SelectColumnsDialog(QDialog):
+    """
+    A reusable dialog that lets the user pick which columns should be shown in a table, from a fixed master list of
+    (SQL name, display label) columns. Some columns can be marked as "always shown" (checked and disabled), so the
+    user cannot deselect them. Intended for the Database review table (Edit > "Select Columns for Review Panel..."),
+    and reusable later for other tables (e.g. the Analysis Results table) that need the same kind of column picker.
+    """
+    def __init__(self, AllColumns, AlwaysShownSQL, CurrentlySelectedSQL, parent=None):
+        """
+        :param AllColumns: List of (SQLName, Label) tuples, in the fixed master order used for display.
+        :param AlwaysShownSQL: List of SQL names that must always stay selected (checked and disabled).
+        :param CurrentlySelectedSQL: List of SQL names that should start checked (in addition to AlwaysShownSQL).
+        :param parent: Parent widget.
+        """
+        super().__init__(parent)
+        self.AllColumns = AllColumns
+        self.Checkboxes = {}          # SQLName -> QCheckBox
+        self.setWindowTitle("Select Columns")
+        Layout = QVBoxLayout(self)
+        Label = QLabel("Select the columns to display in the table. Columns marked with * are always shown.")
+        Layout.addWidget(Label)
+        # A scrollable grid of checkboxes, so a long column list stays manageable.
+        ScrollArea = QScrollArea()
+        ScrollArea.setWidgetResizable(True)
+        ScrollContent = QWidget()
+        Grid = QGridLayout(ScrollContent)
+        NumCols = 3
+        FontMetrics = QFontMetrics(self.font())
+        MaxLabelWidth = 0
+        for i, (SQLName, ColLabel) in enumerate(AllColumns):
+            IsAlwaysShown = SQLName in AlwaysShownSQL
+            Text = ColLabel + (' *' if IsAlwaysShown else '')
+            CheckBox = QCheckBox(Text)
+            CheckBox.setChecked(IsAlwaysShown or (SQLName in CurrentlySelectedSQL))
+            if IsAlwaysShown:
+                CheckBox.setEnabled(False)
+            self.Checkboxes[SQLName] = CheckBox
+            Grid.addWidget(CheckBox, i // NumCols, i % NumCols)
+            MaxLabelWidth = max(MaxLabelWidth, FontMetrics.width(Text))
+        ScrollArea.setWidget(ScrollContent)
+        Layout.addWidget(ScrollArea)
+        # Size the dialog so the longest label isn't clipped, regardless of how many/how long the columns are
+        #   (e.g. the Analysis panel's labels are much longer than the Database panel's).
+        ColumnWidth = MaxLabelWidth + 60           # checkbox + margins/padding.
+        DialogWidth = min(NumCols * ColumnWidth + 60, 1400)      # capped so it stays on-screen for huge lists.
+        self.resize(max(DialogWidth, 500), 550)
+        # OK/Cancel buttons.
+        ButtonLayout = QHBoxLayout()
+        Button_OK = QPushButton("OK")
+        Button_OK.setStyleSheet(Dialog_Button_Style["Accept"])
+        Button_OK.clicked.connect(self.accept)
+        Button_Cancel = QPushButton("Cancel")
+        Button_Cancel.setStyleSheet(Dialog_Button_Style["General"])
+        Button_Cancel.clicked.connect(self.reject)
+        ButtonLayout.addWidget(Button_OK)
+        ButtonLayout.addWidget(Button_Cancel)
+        Layout.addLayout(ButtonLayout)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Get_Selected_Columns(self):
+        """
+        :return: The SQL names of the checked columns, in the master "AllColumns" order.
+        """
+        return [SQLName for SQLName, _ in self.AllColumns if self.Checkboxes[SQLName].isChecked()]
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+class SortableTableItem(QTableWidgetItem):
+    """
+    This class generates a table item that shows the given text, but sorts by the actual value behind it. A regular
+    item sorts by its text, which places "10" before "9" and compares rounded numbers and percentages incorrectly.
+    """
+    def __init__(self, Text, Value):
+        super().__init__(Text)
+        self.SortKey = Get_Sort_Key(Value)
+    # ------------------------------------------------------------------------------------------------------------------
+    def __lt__(self, other):
+        return self.SortKey < other.SortKey
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Get_Sort_Key(Value):
+    """
+    This function converts a table value to a key for sorting: numbers (including the 0/1 of the boolean columns) come
+    first by their value, then texts, and then empty values. Texts ignore upper/lower case and compare any digits in
+    them as whole numbers, like Windows File Explorer, so "Rep2" comes before "Rep10".
+
+    :param Value: the value from the database.
+    :return: a tuple, that can be compared with the key of any other value.
+    """
+    if isinstance(Value, (int, float)):
+        return (2,) if math.isnan(Value) else (0, Value)
+    if Value is None or Value == '':
+        return (2,)
+    Parts = re.split(r'(\d+)', str(Value).lower())
+    return (1, [int(Part) if i % 2 == 1 else Part for i, Part in enumerate(Parts)])
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

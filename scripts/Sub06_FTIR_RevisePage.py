@@ -1257,6 +1257,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.Carbonyl_Gaussians  = Deconv['Carbonyl_Gaussians']
         self.Sulfoxide_Gaussians = Deconv['Sulfoxide_Gaussians']
         self.Aliphatic_Gaussians = Deconv['Aliphatic_Gaussians']
+        self.GaussianList = Deconv['Gaussian_List']
         # --------------------------------------------------------------------------------------------------------------
         # Calculating the areas and ISO, ICO values. 
         CArea = (self.Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Carbonyl_Gaussians[:, 1])).sum()
