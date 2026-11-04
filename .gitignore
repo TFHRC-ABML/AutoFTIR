@@ -5,3 +5,7 @@ test.*
 test*
 # Ignore the Pycash directory. 
 __pycache__/
+# Ignore some directories. 
+development/
+.claude/
+.vscode/
