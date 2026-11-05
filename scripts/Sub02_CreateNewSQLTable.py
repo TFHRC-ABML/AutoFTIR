@@ -14,6 +14,17 @@ import numpy as np
 import pandas as pd
 
 
+# The columns for the rheology predictions (see "Sub10_Rheology_Prediction.py"). They are empty until a record is predicted.
+#   A database without them works normally, and they are added to it when they are needed.
+Rheology_Columns = [('Rheo_HTPG', 'REAL'), ('Rheo_HTPG_Std', 'REAL'), ('Rheo_LTPG', 'REAL'), ('Rheo_LTPG_Std', 'REAL'),
+                    ('Rheo_CTOD', 'REAL'), ('Rheo_CTOD_Std', 'REAL'), ('Rheo_DeltaTc', 'REAL'), ('Rheo_DeltaTc_Std', 'REAL'),
+                    ('Rheo_GStar', 'REAL'), ('Rheo_GStar_Std', 'REAL'),
+                    ('Rheo_PhaseAngle', 'REAL'), ('Rheo_PhaseAngle_Std', 'REAL'),
+                    ('Rheo_S_m30', 'REAL'), ('Rheo_S_m30_Std', 'REAL'), ('Rheo_m_m30', 'REAL'), ('Rheo_m_m30_Std', 'REAL'),
+                    ('Rheo_InDomain', 'INTEGER'), ('Rheo_AxisScale', 'REAL'), ('Rheo_AxisCorrected', 'INTEGER'),
+                    ('Rheo_ModelVersion', 'TEXT')]
+
+
 def Create_SQLite3_DB_Connect(path):
     """
     This function generates a new database and set up the main table in that database. 
@@ -92,7 +103,8 @@ def Create_SQLite3_DB_Connect(path):
         Deconv_SulfoxideList_dtype TEXT, 
         Deconv_AliphaticList BLOB, 
         Deconv_AliphaticList_shape TEXT, 
-        Deconv_AliphaticList_dtype TEXT          
+        Deconv_AliphaticList_dtype TEXT,
+        """ + ', '.join(f'{Name} {Type}' for Name, Type in Rheology_Columns) + """
     )
     """)
     cursor.execute("CREATE INDEX idx_filename ON FTIR (FileName);")       # Creating an index for "FileName"
@@ -150,7 +162,8 @@ def Check_Database_File(Path, RequireAllColumns=False):
         Found = ', '.join(Tables) if len(Tables) > 0 else 'none'
         return f'"{FileName}" has no table named "FTIR", which AutoFTIR needs.\n\nTables in this file: {Found}', ''
     # Check the columns.
-    Missing = [Name for Name in Expected if Name.lower() not in Columns]
+    Optional = [Name for Name, _ in Rheology_Columns]       # These are added to the database when they are needed.
+    Missing = [Name for Name in Expected if Name.lower() not in Columns and Name not in Optional]
     MissingNeeded = [Name for Name in Missing if RequireAllColumns or Name not in Older_Version_Columns]
     if len(MissingNeeded) > 0:
         Shown = ', '.join(MissingNeeded[:10])
@@ -164,6 +177,33 @@ def Check_Database_File(Path, RequireAllColumns=False):
                     f'adding data, modifying a record, "Export Individual Record", and "Export Database (Summary)" '
                     f'will not work on this database, and can close the program.')
     return '', ''
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Has_Rheology_Columns(cursor):
+    """
+    This function checks if the database has all the columns for the rheology predictions.
+    """
+    cursor.execute("PRAGMA table_info(FTIR)")
+    Columns = [Row[1].lower() for Row in cursor.fetchall()]
+    return all(Name.lower() in Columns for Name, _ in Rheology_Columns)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Add_Rheology_Columns(conn, cursor):
+    """
+    This function adds any missing column for the rheology predictions to the database. The existing data isn't changed.
+    """
+    cursor.execute("PRAGMA table_info(FTIR)")
+    Columns = [Row[1].lower() for Row in cursor.fetchall()]
+    for Name, Type in Rheology_Columns:
+        if Name.lower() not in Columns:
+            cursor.execute(f"ALTER TABLE FTIR ADD COLUMN {Name} {Type}")
+    conn.commit()
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

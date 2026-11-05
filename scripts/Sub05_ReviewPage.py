@@ -103,7 +103,17 @@ class DB_ReviewPage(QMainWindow):
             ('FileName', 'File Name'), ('FileDirectory', 'File Directory'), ('IsOutlier', 'Is Outlier?'),
             ('Baseline_Adjustment_Method', 'Baseline Method'),
             ('ALS_Lambda', 'ALS λ'), ('ALS_Ratio', 'ALS ρ'), ('ALS_NumIter', 'ALS N Iter'),
-            ('Normalization_Method', 'Normalization Method'), ('Normalization_Coeff', 'Normalization Coeff')]
+            ('Normalization_Method', 'Normalization Method'), ('Normalization_Coeff', 'Normalization Coeff'),
+            ('Rheo_HTPG', 'HTPG (Rheo)'), ('Rheo_HTPG_Std', 'HTPG Std (Rheo)'),
+            ('Rheo_LTPG', 'LTPG (Rheo)'), ('Rheo_LTPG_Std', 'LTPG Std (Rheo)'),
+            ('Rheo_CTOD', 'CTOD (Rheo)'), ('Rheo_CTOD_Std', 'CTOD Std (Rheo)'),
+            ('Rheo_DeltaTc', 'ΔTc (Rheo)'), ('Rheo_DeltaTc_Std', 'ΔTc Std (Rheo)'),
+            ('Rheo_GStar', '|G*| (Rheo)'), ('Rheo_GStar_Std', '|G*| Std (Rheo)'),
+            ('Rheo_PhaseAngle', 'Phase Angle (Rheo)'), ('Rheo_PhaseAngle_Std', 'Phase Angle Std (Rheo)'),
+            ('Rheo_S_m30', 'S at -30 (Rheo)'), ('Rheo_S_m30_Std', 'S at -30 Std (Rheo)'),
+            ('Rheo_m_m30', 'm at -30 (Rheo)'), ('Rheo_m_m30_Std', 'm at -30 Std (Rheo)'),
+            ('Rheo_InDomain', 'In Domain (Rheo)'), ('Rheo_AxisScale', 'Axis Scale (Rheo)'),
+            ('Rheo_AxisCorrected', 'Axis Corrected (Rheo)'), ('Rheo_ModelVersion', 'Model Version (Rheo)')]
         # Columns the user is not allowed to hide from the "Select Columns" dialog.
         self.AlwaysShownSQL = ['id', 'Bnumber', 'Lab_Aging', 'RepNumber']
         # Default columns shown when the page is first created.
@@ -707,7 +717,12 @@ class DB_ReviewPage(QMainWindow):
                                     'selecting columns for the review table.')
             return
         # Open the dialog, seeded with the currently selected columns.
-        Dialog = SelectColumnsDialog(self.AllColumns, self.AlwaysShownSQL, self.SQL_ColumnNames, self)
+        # The rheology columns are only offered if this database has them.
+        self.cursor.execute("PRAGMA table_info(FTIR)")
+        Available = [Row[1].lower() for Row in self.cursor.fetchall()]
+        Offered = [Column for Column in self.AllColumns
+                   if (not Column[0].startswith('Rheo_')) or Column[0].lower() in Available]
+        Dialog = SelectColumnsDialog(Offered, self.AlwaysShownSQL, self.SQL_ColumnNames, self)
         if Dialog.exec_() != QDialog.Accepted:
             return
         # Apply the new selection (re-derive both lists from the master order, regardless of what order the dialog
@@ -1413,11 +1428,16 @@ class DB_ReviewPage(QMainWindow):
                 Res[f'{col}_{metric}'] = []
         # Define a function to add data to the results. 
         def AddResults(Res, arr, ResLabel):
-            Res[f'{ResLabel}_mean'].append(arr.mean())
-            Res[f'{ResLabel}_std'].append(arr.std())
-            Res[f'{ResLabel}_COV'].append(arr.std() / arr.mean())
-            Res[f'{ResLabel}_min'].append(arr.min())
-            Res[f'{ResLabel}_max'].append(arr.max())
+            # An empty value (e.g., an Aliphatic peak not found in a spectrum) is left out of the statistics, so one
+            #   replicate doesn't remove the results of the others. It still shows in the list of the data.
+            Valid = pd.to_numeric(pd.Series(arr), errors='coerce').dropna().to_numpy()
+            if len(Valid) == 0:
+                Valid = np.array([np.nan])
+            Res[f'{ResLabel}_mean'].append(Valid.mean())
+            Res[f'{ResLabel}_std'].append(Valid.std())
+            Res[f'{ResLabel}_COV'].append(Valid.std() / Valid.mean())
+            Res[f'{ResLabel}_min'].append(Valid.min())
+            Res[f'{ResLabel}_max'].append(Valid.max())
             Res[f'{ResLabel}_data'].append('|'.join(list(arr.astype(str))))
             return Res
         # Start iterating over the unique "B-numbers" and analyze the results. 

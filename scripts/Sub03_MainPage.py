@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
     QProgressDialog, QListWidget
 from PyQt5.QtGui import QPixmap, QFont, QRegExpValidator, QIntValidator, QDoubleValidator
 from PyQt5.QtCore import Qt, QRegExp
+from PyQt5.QtWidgets import QActionGroup
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from scripts.Sub02_CreateNewSQLTable import Get_DB_SummaryData, Append_to_Database, Get_Info_From_Name, \
@@ -29,9 +30,17 @@ from scripts.Sub04_FTIR_Analysis_Functions import Read_FTIR_Data, Baseline_Adjus
     Calc_Aliphatic_Area, Calc_Carbonyl_Area, Calc_Sulfoxide_Area, Array_to_Binary, Binary_to_Array, Find_Peaks, \
     Normalization_Method_A, Normalization_Method_C, Normalization_Method_D
 from scripts.Sub05_ReviewPage import DB_ReviewPage, Dialog_Button_Style
-from scripts.Sub06_FTIR_RevisePage import Revise_FTIR_AnalysisPage, FloatDelegate
-from scripts.Sub07_Deconvolution_Analysis import Run_Deconvolution, gaussian_bell
+from scripts.Sub04_FTIR_Analysis_Functions import Get_Aliphatic_Peaks
+from scripts.Sub06_FTIR_RevisePage import Revise_FTIR_AnalysisPage, FloatDelegate, Show_Accept_Failed_Message, \
+    Show_Failure_Message, Run_And_Restore_On_Failure
+from scripts.Sub07_Deconvolution_Analysis import Run_Deconvolution, gaussian_bell, Get_Gaussian_Group_Indices
 from scripts.Sub08_FTIR_PlotPage import FTIR_PlotPage
+from scripts.Sub09_Gaussian_DragEditor import Gaussian_Drag_Editor, Fill_Gaussian_Table, Table_Has_Pending_Edits
+from scripts.Sub07_Deconvolution_Analysis import Gaussian_Group_Ranges, Set_Gaussian_Group_Ranges
+from scripts.Sub11_Spectral_Ranges import Spectral_Ranges_Dialog
+from scripts.Sub10_Rheology_Prediction import Create_Results_GroupBox, Get_Model_File_Path, Get_Rheology_Model, \
+    Get_Unavailable_Reason, Has_Raw_Spectrum_Columns, Predict_Rheology_For_Database, Save_Rheology_Results, \
+    Select_Rheology_Model_File, Set_Rheology_Model_Active
 
 # The aging levels always offered when entering record details, in addition to any other level in the database.
 Default_Aging_Levels = ["ORG", "RTFO", "1PAV", "2PAV", "1PNV", "2PNV", "Extraction"]
@@ -171,10 +180,37 @@ class Main_Window(QMainWindow):
         Action_SelectColumnsAnalysis = QAction("Select Columns for Analysis Panel...", self)
         Action_SelectColumnsAnalysis.triggered.connect(self.db_review_page.Open_Column_Selector_Dialog_Analysis)
         Menu_View.addAction(Action_SelectColumnsAnalysis)
+        # "Spectral Ranges..." action, for changing the ranges of the regions until the program is closed.
+        Action_SpectralRanges = QAction("Spectral Ranges...", self)
+        Action_SpectralRanges.triggered.connect(self.Spectral_Ranges_Function)
+        Menu_Run.addAction(Action_SpectralRanges)
+        Menu_Run.addSeparator()
+        # "FTIR-Rheology Model" sub-menu, for selecting the model file and turning the model on and off.
+        Menu_Rheology = Menu_Run.addMenu("FTIR-Rheology Model")
+        Menu_Rheology.setToolTipsVisible(True)
+        self.Action_SelectModel = QAction("Select Model File...", self)
+        self.Action_SelectModel.triggered.connect(self.Select_Rheology_Model_Function)
+        Menu_Rheology.addAction(self.Action_SelectModel)
+        Menu_Rheology.addSeparator()
+        self.Action_ModelActive = QAction("Model is Active", self)
+        self.Action_ModelInactive = QAction("Model is Inactive", self)
+        Group_ModelState = QActionGroup(self)       # Only one of them can be checked.
+        for Action, Active in [(self.Action_ModelActive, True), (self.Action_ModelInactive, False)]:
+            Action.setCheckable(True)
+            Group_ModelState.addAction(Action)
+            Action.triggered.connect(lambda Checked=False, Active=Active: self.Set_Rheology_Active_Function(Active))
+            Menu_Rheology.addAction(Action)
+        Menu_Run.addSeparator()
         # "Re-calculate DB..." action.
         Action_Recalculate = QAction("Re-calculate DB...", self)
         Action_Recalculate.triggered.connect(self.Recalculate_DB_Function)
         Menu_Run.addAction(Action_Recalculate)
+        # "Run Rheology Predictions..." action, which is off if the rheology model is not available.
+        self.Action_RunRheology = QAction("Run Rheology Predictions...", self)
+        self.Action_RunRheology.triggered.connect(self.Run_Rheology_Predictions_Function)
+        Menu_Run.setToolTipsVisible(True)
+        Menu_Run.addAction(self.Action_RunRheology)
+        self.Sync_Rheology_State()
     # ------------------------------------------------------------------------------------------------------------------
     def Sync_File_Menu(self):
         # The "Add Data to DB" button is disabled while files are being analyzed, so its menu item should be as well.
@@ -381,6 +417,182 @@ class Main_Window(QMainWindow):
             if len(Summary['Errors']) > 10:
                 Msg += f"\n  ... and {len(Summary['Errors']) - 10} more."
         QMessageBox.information(self, "Re-calculate DB", Msg)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Spectral_Ranges_Function(self):
+        """
+        This function lets the user change the ranges of the Carbonyl, Sulfoxide, and Aliphatic regions, for the Gaussians.
+        A change lasts until the program is closed, and it is not saved anywhere. A spectrum open on the Main or Modify page
+        is grouped again, so what gets saved always matches what is shown.
+        """
+        Dialog = Spectral_Ranges_Dialog(self)
+        if Dialog.exec_() != QDialog.Accepted:
+            return
+        New = Dialog.Get_Ranges()
+        if New == Gaussian_Group_Ranges:
+            return
+        Previous = dict(Gaussian_Group_Ranges)
+        try:
+            Set_Gaussian_Group_Ranges(New)
+        except ValueError as Err:
+            QMessageBox.critical(self, "Spectral Ranges", f"The ranges did not change.\n\n{Err}")
+            return
+        Updated, Failed = self.Regroup_Open_Spectra()
+        if Failed:
+            # The page that failed went back to its previous groups, so the ranges go back too, to keep them matching. A page
+            #   that was updated before the failure is grouped again with the previous ranges.
+            Set_Gaussian_Group_Ranges(Previous)
+            self.Regroup_Open_Spectra(Only=Updated)
+            QMessageBox.critical(self, "Spectral Ranges", "The open spectrum could not be updated with the new ranges, so "
+                                 "the ranges did not change.")
+            return
+        Msg = "The new ranges are in use until you close the program:\n"
+        Msg += "".join(f"    {Region}: {Lower} to {Upper} cm^-1\n" for Region, (Lower, Upper) in New.items())
+        Msg += "\nThey apply to the spectra you open from now on, and to Re-Plot."
+        if Updated:
+            Msg += " The spectrum open now was updated with them, so its ICO and ISO may have changed."
+        Msg += ("\n\nThe records already saved keep their results until you open them and accept them again. So, a database "
+                "can hold results from different ranges, which matters when comparing binders.")
+        QMessageBox.warning(self, "Spectral Ranges", Msg)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Regroup_Open_Spectra(self, Only=None):
+        """
+        This function applies the current ranges to a spectrum open on the Main or Modify page, using their "Re-Plot". Any
+        values typed in the table and not plotted yet are applied as well, as "Re-Plot" does. Otherwise, the full precision
+        of the Gaussians is kept, so only the ranges make a difference.
+
+        :param Only: If given, only these pages are updated.
+        :return: A list of the pages that were updated, and True if updating any page failed.
+        """
+        Updated, Failed = [], False
+        Main, Modify = self.main_page, self.FTIR_revise_page
+        # "Re-Plot" of the Main page is only on while a file is being analyzed, and the Modify page reloads when it opens.
+        Pages = []
+        if Main.RePlot_Button.isEnabled():
+            Pages.append((Main, Main.Deconv['Gaussian_List']))
+        if self.stack.currentWidget() is Modify:
+            Pages.append((Modify, Modify.GaussianList))
+        for Page, Gaussians in Pages:
+            if Only is not None and Page not in Only:
+                continue
+            if not Table_Has_Pending_Edits(Page.GL_Table, Gaussians):
+                Fill_Gaussian_Table(Page.GL_Table, Gaussians, Format='.10e')
+            if Page.Function_Button_RePlot():
+                Updated.append(Page)
+            else:
+                Failed = True
+        return Updated, Failed
+    # ------------------------------------------------------------------------------------------------------------------
+    def Sync_Rheology_State(self):
+        """
+        This function makes the menu and the "Rheology" tabs show the current state of the model. "Model is Active" is only
+        checked if there is really a working model, so it stays off if the config says active but the file is not usable.
+        """
+        Active = Get_Rheology_Model() is not None
+        self.Action_ModelActive.setChecked(Active)
+        self.Action_ModelInactive.setChecked(not Active)
+        self.Action_RunRheology.setEnabled(Active)
+        self.Action_RunRheology.setToolTip("Run the rheology model for the records of the database." if Active
+                                           else Get_Unavailable_Reason())
+        self.Action_SelectModel.setToolTip(f"Current model file: {Get_Model_File_Path()}")
+        self.main_page.RheologyTab.Sync_With_Model()
+        self.FTIR_revise_page.RheologyTab.Sync_With_Model()
+    # ------------------------------------------------------------------------------------------------------------------
+    def Select_Rheology_Model_Function(self):
+        """
+        This function asks for a model file, checks if it is valid, and if so, uses it instead of the current model. The
+        spectrum on the page is predicted again. The records already in the database keep their results.
+        """
+        Path, _ = QFileDialog.getOpenFileName(self, "Select the FTIR-Rheology Model File",
+                                              os.path.dirname(Get_Model_File_Path()), "Model Files (*.npz)")
+        if not Path:
+            return
+        Error = Select_Rheology_Model_File(Path)
+        if Error:
+            QMessageBox.critical(self, "Select Model File", "This file can't be used, so the current model did not " +
+                                 f"change.\n\n{Error}")
+            return
+        self.Sync_Rheology_State()
+        Model = Get_Rheology_Model()
+        if Model is None:
+            Msg = (f"The model file was selected:\n{Path}\n\nThe model is inactive, so this file will be used when you " +
+                   'select "Model is Active".')
+        else:
+            Msg = (f"The model was loaded:\n{Path}\n\nVersion: {Model.Version}\n\nThe records already in the database " +
+                   'keep their results. To update them, please use "Run Rheology Predictions...".')
+        QMessageBox.information(self, "Select Model File", Msg)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Set_Rheology_Active_Function(self, Active):
+        """
+        This function turns the rheology model on or off, and saves it to the config. It takes effect right away.
+        """
+        Error = Set_Rheology_Model_Active(Active)
+        self.Sync_Rheology_State()
+        if Error:
+            QMessageBox.warning(self, "FTIR-Rheology Model", f"The model state did not change.\n\n{Error}")
+    # ------------------------------------------------------------------------------------------------------------------
+    def Run_Rheology_Predictions_Function(self):
+        """
+        This function runs the rheology prediction for the records of the database, and saves the results. If the database
+        doesn't have the rheology columns, they are added first. The program is frozen while this runs, like "Re-calculate
+        DB...". A failure is shown to the user, and the records stay as they were.
+        """
+        if Get_Rheology_Model() is None:
+            QMessageBox.warning(self, "Run Rheology Predictions", Get_Unavailable_Reason())
+            return
+        # The model needs the raw spectra, which the oldest databases don't have.
+        if not Has_Raw_Spectrum_Columns(self.cursor):
+            QMessageBox.warning(self, "Run Rheology Predictions", "This database doesn't have the raw spectra, which the " +
+                                "rheology model needs. So the database was not changed.")
+            return
+        Question = QMessageBox(self)
+        Question.setIcon(QMessageBox.Question)
+        Question.setWindowTitle("Run Rheology Predictions Confirmation")
+        Question.setText(
+            "This will run the rheology prediction for every non-outlier record in the database, from its raw spectrum, "
+            "and overwrite the rheology results already stored. The rheology results of outlier records will be empty.\n\n"
+            "If this database doesn't have the columns for the rheology results, they will be added. This cannot be "
+            "undone.\n\nDo you want to continue?")
+        Question.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        Question.setDefaultButton(QMessageBox.No)
+        if Question.exec_() != QMessageBox.Yes:
+            return
+        self.cursor.execute("SELECT COUNT(*) FROM FTIR")
+        Progress = QProgressDialog("Running the rheology predictions...", None, 0, max(self.cursor.fetchone()[0], 1), self)
+        Progress.setWindowTitle("Run Rheology Predictions")
+        Progress.setWindowModality(Qt.ApplicationModal)
+        Progress.setMinimumDuration(0)
+        Progress.setValue(0)
+        Progress.show()
+        def Update_Progress(NumProcessed, Total):
+            Progress.setMaximum(max(Total, 1))
+            Progress.setValue(NumProcessed)
+            QApplication.processEvents()
+        try:
+            Summary = Predict_Rheology_For_Database(self.conn, self.cursor, progress_callback=Update_Progress)
+        except Exception:
+            Progress.close()
+            QMessageBox.critical(self, "Run Rheology Predictions", "The rheology predictions were not saved, because of " +
+                                 f"an error:\n\n{traceback.format_exc()}")
+            return
+        Progress.close()
+        # Update the review table, in case it is showing the rheology columns.
+        Page = self.db_review_page
+        if (not Page.InAnalysisView) and Page.DropDown_Bnumber.currentIndex() > 0:
+            Page.Function_Button_Fetch()
+        # Report the results to the user.
+        Msg = ""
+        if Summary['ColumnsAdded']:
+            Msg += "This database didn't have the columns for the rheology results, so they were added.\n\n"
+        Msg += (f"Records in the database: {Summary['NumRecords']}\n"
+                f"Records predicted: {Summary['NumPredicted']}\n"
+                f"Outlier records (left empty): {Summary['NumOutliers']}\n"
+                f"Records that could not be predicted (left empty): {len(Summary['Errors'])}")
+        if Summary['Errors']:
+            Msg += "\n\nThe following records could not be predicted:\n" + \
+                   "\n".join(f"  id={ErrID}: {ErrMsg}" for ErrID, ErrMsg in Summary['Errors'][:10])
+            if len(Summary['Errors']) > 10:
+                Msg += f"\n  ... and {len(Summary['Errors']) - 10} more."
+        QMessageBox.information(self, "Run Rheology Predictions", Msg)
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
@@ -558,7 +770,7 @@ class MainPage(QMainWindow):
         # Replotting button.
         self.Button_UpdatePreprocess = QPushButton("Update\nRe-Plot")
         self.Button_UpdatePreprocess.setFont(QFont("Arial", 8))
-        self.Button_UpdatePreprocess.clicked.connect(self.Function_Button_UpdatePreprocessing)
+        self.Button_UpdatePreprocess.clicked.connect(self.Function_Button_Safe_UpdatePreprocessing)
         self.Button_UpdatePreprocess.setStyleSheet(self.PushButtonStyle['General'])
         self.Button_UpdatePreprocess.setSizePolicy(self.Button_UpdatePreprocess.sizePolicy().Expanding, 
                                                    self.Button_UpdatePreprocess.sizePolicy().Preferred)
@@ -595,7 +807,12 @@ class MainPage(QMainWindow):
         self.NumFilesProgress_bar.setMaximum(100)
         self.NumFilesProgress_bar.setValue(0)
         FormLayout_Sec2_down.addRow(self.Label_NumFilesProgress, self.NumFilesProgress_bar)
-        Section02_Layout.addLayout(FormLayout_Sec2_top)
+        # The button for editing the Gaussians with the mouse, at the upper right corner of this section.
+        self.Button_EditGaussians = QPushButton("Edit Gaussians")
+        Layout_Sec2_top = QHBoxLayout()
+        Layout_Sec2_top.addLayout(FormLayout_Sec2_top, 1)
+        Layout_Sec2_top.addWidget(self.Button_EditGaussians)
+        Section02_Layout.addLayout(Layout_Sec2_top)
         Section02_Layout.addLayout(FormLayout_Sec2_down)
         # Prepare the plots. 
         self.fig = Figure(figsize=(10, 7))
@@ -685,7 +902,7 @@ class MainPage(QMainWindow):
             FormLayout_Spinbox.addRow(label, spinbox)
         Section04_Layout.addLayout(FormLayout_Spinbox)
         # Add button to save the progress. 
-        self.Button_SaveProgress = QPushButton("Cencel")
+        self.Button_SaveProgress = QPushButton("Cancel")
         self.Button_SaveProgress.setStyleSheet(self.PushButtonStyle['General'])
         self.Button_SaveProgress.setSizePolicy(self.Button_SaveProgress.sizePolicy().Expanding, 
                                                self.Button_SaveProgress.sizePolicy().Preferred)
@@ -711,17 +928,12 @@ class MainPage(QMainWindow):
         RightLayout.addWidget(Section04, 30)
         # --------------------------------------------------------------------------------------------------------------
         # Section 06: Results of the deconvolution. 
-        Section06 = QGroupBox("Deconvolution Analysis Results:")
-        Section06_Layout = QVBoxLayout()
         self.Decon_Label_CArea = QLabel('Carbonyl Area: ')
         self.Decon_Label_SArea = QLabel('Sulfoxide Area: ')
         self.Decon_Label_AArea = QLabel('Aliphatic Area: ')
         self.Decon_Label_Index = QLabel('ICO: N/A, ISO: N/A')
-        Section06_Layout.addWidget(self.Decon_Label_CArea)
-        Section06_Layout.addWidget(self.Decon_Label_SArea)
-        Section06_Layout.addWidget(self.Decon_Label_AArea)
-        Section06_Layout.addWidget(self.Decon_Label_Index)
-        Section06.setLayout(Section06_Layout)
+        Section06, self.RheologyTab = Create_Results_GroupBox([self.Decon_Label_CArea, self.Decon_Label_SArea,
+                                                               self.Decon_Label_AArea, self.Decon_Label_Index])
         RightLayout.addWidget(Section06, 10)
         # --------------------------------------------------------------------------------------------------------------
         Section05 = QGroupBox("Fitted Gaussians:")
@@ -730,14 +942,14 @@ class MainPage(QMainWindow):
         self.RePlot_Button.setStyleSheet(self.PushButtonStyle['General'])
         self.RePlot_Button.setSizePolicy(self.RePlot_Button.sizePolicy().Expanding, 
                                          self.RePlot_Button.sizePolicy().Preferred)
-        self.RePlot_Button.clicked.connect(self.RePlot_Button_Function)
-        self.RePlot_Button.setEnabled(True)
+        self.RePlot_Button.clicked.connect(self.Function_Button_RePlot)
+        self.RePlot_Button.setEnabled(False)
         self.AddNewRow_Button = QPushButton("Add row")
         self.AddNewRow_Button.setStyleSheet(self.PushButtonStyle['General'])
         self.AddNewRow_Button.setSizePolicy(self.AddNewRow_Button.sizePolicy().Expanding, 
                                             self.AddNewRow_Button.sizePolicy().Preferred)
         self.AddNewRow_Button.clicked.connect(self.AddNewRow_Button_Function)
-        self.AddNewRow_Button.setEnabled(True)
+        self.AddNewRow_Button.setEnabled(False)
         # Adding a table. 
         delegate = FloatDelegate()
         self.GL_Table = QTableWidget()
@@ -752,6 +964,14 @@ class MainPage(QMainWindow):
         Section05_Layout.addWidget(self.GL_Table)
         Section05.setLayout(Section05_Layout)
         RightLayout.addWidget(Section05, 44)
+        # --------------------------------------------------------------------------------------------------------------
+        # Editing the Gaussians with the mouse. It needs a record, so it is off until a file is loaded.
+        self.GaussianEditor = Gaussian_Drag_Editor(
+            self, self.Button_EditGaussians, lambda: self.Deconv['Gaussian_List'],
+            [self.RePlot_Button, self.AddNewRow_Button, self.GL_Table, self.Button_OK, self.Button_Outlier,
+             self.Button_SaveProgress, self.Button_UpdatePreprocess, self.Button_AddData, self.Button_ReviewDB,
+             self.Button_PlotData] + self.spinboxes)
+        self.Button_EditGaussians.setEnabled(False)
         # --------------------------------------------------------------------------------------------------------------
         # At the very end, add the left and right layouts to the main layout.
         layout.addLayout(LeftLayout, 80)
@@ -796,9 +1016,18 @@ class MainPage(QMainWindow):
             try:
                 self.Renew_MainPlot_4Next_File()
                 break
-            except:
-                # print(f'\n\n\n\nSkipping {self.CurrentFileList[self.CurrentFileIndex]}\n\n\n\n')
+            except Exception as Err:
+                self.Warn_File_Skipped(Err)
                 continue
+    # ------------------------------------------------------------------------------------------------------------------
+    def Warn_File_Skipped(self, Err):
+        # A file which can't be analyzed is skipped, so the user can continue with the others. It should be called while
+        #   handling the error.
+        Path = self.CurrentFileList[self.CurrentFileIndex]
+        Show_Failure_Message(self, "File Skipped", f'The file "{os.path.basename(Path)}" could not be analyzed, so it was ' +
+                             'skipped, and it is not in the database.\n\nReason:\n' +
+                             f'{str(Err) or type(Err).__name__}\n\nFile directory: {os.path.dirname(Path)}',
+                             Icon=QMessageBox.Warning)
     # ------------------------------------------------------------------------------------------------------------------
     def Review_Edit_DB_Function(self):
         self.stack.setCurrentIndex(1)  # Switch to the second page
@@ -932,8 +1161,8 @@ class MainPage(QMainWindow):
         Check = self.Check_EndofLoop()
         return
     # ------------------------------------------------------------------------------------------------------------------
-    def Outlier_Button_Function(self):
-        # Extract the spin box values. 
+    def Save_Outlier_Record(self):
+        # Extract the spin box values.
         XCmin = self.spinboxes[0].value()
         XCmax = self.spinboxes[1].value()
         XSmin = self.spinboxes[2].value()
@@ -1007,6 +1236,18 @@ class MainPage(QMainWindow):
             "Deconv_CarbonylList" : Cbinary, "Deconv_CarbonylList_shape" : Cshape, "Deconv_CarbonylList_dtype" : Cdtype, 
             "Deconv_SulfoxideList": Sbinary, "Deconv_SulfoxideList_shape": Sshape, "Deconv_SulfoxideList_dtype": Sdtype, 
             "Deconv_AliphaticList": Abinary, "Deconv_AliphaticList_shape": Ashape, "Deconv_AliphaticList_dtype": Adtype })
+        Save_Rheology_Results(self, self.conn, self.cursor, self.cursor.lastrowid, None, IsOutlier=True)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Outlier_Button_Function(self):
+        # A spectrum which can't be saved shouldn't close the program. So, the user stays on this file and gets the reason.
+        try:
+            self.Save_Outlier_Record()
+        except Exception as Err:
+            self.conn.rollback()
+            Show_Failure_Message(self, "Mark as Outlier Failed", f'Saving this record as an outlier failed, and nothing was saved.\n\n' +
+                                 'Please either repair the file manually, or cancel the analysis using the "Cancel" ' +
+                                 f'button.\n\nReason:\n{str(Err) or type(Err).__name__}')
+            return
         # --------------------------------------------------------------------------------------------------------------
         # Update the index and check for end of the process. 
         while True:
@@ -1019,14 +1260,14 @@ class MainPage(QMainWindow):
             try:
                 self.Renew_MainPlot_4Next_File()
                 break
-            except:
-                # print(f'Skipping {self.CurrentFileList[self.CurrentFileIndex]}')
+            except Exception as Err:
+                self.Warn_File_Skipped(Err)
                 continue
         # Return Nothing.
         return
     # ------------------------------------------------------------------------------------------------------------------
-    def OK_Button_Function(self):
-        # Extract the spin box values. 
+    def Save_Accepted_Record(self):
+        # Extract the spin box values.
         XCmin = self.spinboxes[0].value()
         XCmax = self.spinboxes[1].value()
         XSmin = self.spinboxes[2].value()
@@ -1071,21 +1312,8 @@ class MainPage(QMainWindow):
         Cbinary, Cshape, Cdtype = Array_to_Binary(self.Deconv['Carbonyl_Gaussians'])
         Sbinary, Sshape, Sdtype = Array_to_Binary(self.Deconv['Sulfoxide_Gaussians'])
         Abinary, Ashape, Adtype = Array_to_Binary(self.Deconv['Aliphatic_Gaussians'])
-        # Find the Aliphatic peaks.
-        XPeak, YPeak, Prominence, XLeft, XRight = Find_Peaks(np.hstack((self.X.reshape(-1, 1), self.Y.reshape(-1, 1))), 
-                                                             [XAmin, XAmax], 0.001)
-        # Check if two peaks were found. 
-        if len(XPeak) < 1:
-            raise Exception(f'Peak was NOT found in the range of {XAmin:.1f} to {XAmax:.1f} cm^-1 for this binder! ' +
-                            f'Check manually!')
-        elif len(XPeak) > 1:
-            # More than two peak were found. Using two close ones as main peaks.
-            SortedIndex = np.argsort(YPeak)
-            MaxIndex    = SortedIndex[-2:]      # Get the highwst peaks. 
-            MaxIndex    = MaxIndex[np.argsort(np.array(XPeak)[MaxIndex])]       # Sort based on their location.
-            # Fix the Peaks. 
-            XPeak = np.array(XPeak)[MaxIndex]
-            YPeak = np.array(YPeak)[MaxIndex]
+        # Find the Aliphatic peaks in the spectrum. If they are not enough, the fitted Gaussians are checked as well.
+        XPeak, YPeak, AliphaticWarning = Get_Aliphatic_Peaks(self.X, self.Y, XAmin, XAmax, self.Deconv['Aliphatic_Gaussians'])
         # Append the data to the database. 
         Append_to_Database(self.conn, self.cursor, {
             "Bnumber": Bnumber, "Lab_Aging": LabAging, "RepNumber": RepNumber, 
@@ -1102,7 +1330,7 @@ class MainPage(QMainWindow):
             "Carbonyl_Peak_Absorption": self.Y[CIndex][np.argmax(self.Y[CIndex])],
             "Sulfoxide_Peak_Absorption": self.Y[SIndex][np.argmax(self.Y[SIndex])],
             "Aliphatic_Peak_Absorption_1": YPeak[0],
-            "Aliphatic_Peak_Absorption_2": YPeak[0],
+            "Aliphatic_Peak_Absorption_2": YPeak[1],
             "Wavenumber": Xbinary, "Wavenumber_shape": Xshape, "Wavenumber_dtype": Xdtype,
             "Absorption": Ybinary, "Absorption_shape": Yshape, "Absorption_dtype": Ydtype,
             "RawWavenumber": Xrawbinary, "RawWavenumber_shape": Xrawshape, "RawWavenumber_dtype": Xrawdtype,
@@ -1119,8 +1347,20 @@ class MainPage(QMainWindow):
             "Deconv_GaussianList" : Gbinary, "Deconv_GaussianList_shape" : Gshape, "Deconv_GaussianList_dtype" : Gdtype,
             "Deconv_CarbonylList" : Cbinary, "Deconv_CarbonylList_shape" : Cshape, "Deconv_CarbonylList_dtype" : Cdtype, 
             "Deconv_SulfoxideList": Sbinary, "Deconv_SulfoxideList_shape": Sshape, "Deconv_SulfoxideList_dtype": Sdtype, 
-            "Deconv_AliphaticList": Abinary, "Deconv_AliphaticList_shape": Ashape, "Deconv_AliphaticList_dtype": Adtype            
+            "Deconv_AliphaticList": Abinary, "Deconv_AliphaticList_shape": Ashape, "Deconv_AliphaticList_dtype": Adtype
             })
+        Save_Rheology_Results(self, self.conn, self.cursor, self.cursor.lastrowid, self.RheologyTab.Results)
+        if AliphaticWarning:
+            QMessageBox.warning(self, "Saved with a Warning", AliphaticWarning)
+    # ------------------------------------------------------------------------------------------------------------------
+    def OK_Button_Function(self):
+        # A spectrum which can't be saved shouldn't close the program. So, the user stays on this file and gets the reason.
+        try:
+            self.Save_Accepted_Record()
+        except Exception as Err:
+            self.conn.rollback()
+            Show_Accept_Failed_Message(self, Err, "Adding this record to the database")
+            return
         # --------------------------------------------------------------------------------------------------------------
         # Reset the binder info. 
         self.CurBinderInfo = {'Bnumber': -1, 'RepNum': -1, 'LabAging': ''}
@@ -1135,8 +1375,8 @@ class MainPage(QMainWindow):
             try:
                 self.Renew_MainPlot_4Next_File()
                 break
-            except:
-                # print(f'Skipping {self.CurrentFileList[self.CurrentFileIndex]}')
+            except Exception as Err:
+                self.Warn_File_Skipped(Err)
                 continue
         # Return Nothing.
         return
@@ -1160,6 +1400,8 @@ class MainPage(QMainWindow):
                     self.GL_Table.setItem(row_idx, col_idx, item)
             self.RePlot_Button.setEnabled(False)
             self.AddNewRow_Button.setEnabled(False)
+            self.Button_EditGaussians.setEnabled(False)
+            self.RheologyTab.Clear()
             # Disable the buttons.
             self.Button_OK.setEnabled(False)
             self.Button_Outlier.setEnabled(False)
@@ -1213,9 +1455,10 @@ class MainPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Renew_MainPlot_4Next_File(self):
         """
-        This function renew and draw the main plot and prepare it for the next analysis.  
+        This function renew and draw the main plot and prepare it for the next analysis.
         """
-        Data = None                     # reset the "Data" variable. 
+        self.RheologyTab.Clear()        # So the results of the previous file can't be saved for this one.
+        Data = None                     # reset the "Data" variable.
         self.Funtion_Clear_Axes()       # First, clear the plotting axes. 
         # Read the files, until a proper file achieved. 
         for i in range(self.CurrentFileIndex, len(self.CurrentFileList)):
@@ -1296,7 +1539,9 @@ class MainPage(QMainWindow):
         self.RawData = RawData.copy()
         self.X = X
         self.Y = Y
-        # Also run the algorithm to get the indices. 
+        # Predict the rheological properties, which only use the raw spectrum.
+        self.RheologyTab.Set_Spectrum(self.RawData[:, 0], self.RawData[:, 1])
+        # Also run the algorithm to get the indices.
         # Calculate the areas. 
         FlagC, FlagS, FlagA = False, False, False
         try:
@@ -1352,6 +1597,7 @@ class MainPage(QMainWindow):
         # Enable the adjustment buttons. 
         self.RePlot_Button.setEnabled(True)
         self.AddNewRow_Button.setEnabled(True)
+        self.Button_EditGaussians.setEnabled(True)
         self.Button_OK.setEnabled(True)
         self.Button_Outlier.setEnabled(True)
         self.Button_SaveProgress.setEnabled(True)
@@ -1521,7 +1767,7 @@ class MainPage(QMainWindow):
             else:
                 self.LineEdit_ALSNumIter.setText(f"{NumIter}")
         except Exception as err:
-            QMessageBox.critical(self, "Error in Number of iterations!", err)
+            QMessageBox.critical(self, "Error in Number of iterations!", str(err))
             return
         # --------------------------------------------------------------------------------------------------------------
         # Check the Ratio.
@@ -1537,7 +1783,7 @@ class MainPage(QMainWindow):
             else:
                 self.LineEdit_ALSRatio.setText(f'{Ratio:.6e}')
         except Exception as err:
-            QMessageBox.critical(self, "Error in ALS Ratio!", err)
+            QMessageBox.critical(self, "Error in ALS Ratio!", str(err))
             return
         # --------------------------------------------------------------------------------------------------------------
         # Check the Lambda
@@ -1553,7 +1799,7 @@ class MainPage(QMainWindow):
             else:
                 self.LineEdit_ALSLambda.setText(f'{Lambda:.3e}')
         except Exception as err:
-            QMessageBox.critical(self, "Error in ALS Lambda!", err)
+            QMessageBox.critical(self, "Error in ALS Lambda!", str(err))
             return
         # --------------------------------------------------------------------------------------------------------------
         # Perform the ALS Smoothing baseline correction and normalization. 
@@ -1583,6 +1829,12 @@ class MainPage(QMainWindow):
         Sulfoxide_Gaussians = Deconv['Sulfoxide_Gaussians']
         Aliphatic_Gaussians = Deconv['Aliphatic_Gaussians']
         # --------------------------------------------------------------------------------------------------------------
+        # Update the Gaussian table and the deconvolution information.
+        Fill_Gaussian_Table(self.GL_Table, Deconv['Gaussian_List'])
+        self.Decon_Label_CArea.setText(f'Carbonyl Area: {Deconv["Carbonyl_Area"]:.2f}')
+        self.Decon_Label_SArea.setText(f'Sulfoxide Area: {Deconv["Sulfoxide_Area"]:.2f}')
+        self.Decon_Label_AArea.setText(f'Aliphatic Area: {Deconv["Aliphatic_Area"]:.2f}')
+        self.Decon_Label_Index.setText(f'ICO: {Deconv["ICO"]:.4f}, ISO: {Deconv["ISO"]:.4f}')
         # Plot the data. 
         self.Funtion_Clear_Axes()       # First, clear the plots.
         # First, whole wavenumbers. 
@@ -1705,6 +1957,18 @@ class MainPage(QMainWindow):
         for column in range(self.GL_Table.columnCount()):
             self.GL_Table.setItem(current_row_count, column, QTableWidgetItem("0.0"))
     # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_RePlot(self):
+        # A failure shouldn't close the program. The values in the table stay, so the user can correct them.
+        return Run_And_Restore_On_Failure(self, self.RePlot_Button_Function, self.Plotter, "Re-Plot Failed",
+                                   "Re-plotting from the Gaussian table failed, so the previous results were kept.\n\n" +
+                                   "Please check the values in the table and try again.")
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_Safe_UpdatePreprocessing(self):
+        # A failure shouldn't close the program, or leave the new spectrum with the Gaussians of the previous one.
+        Run_And_Restore_On_Failure(self, self.Function_Button_UpdatePreprocessing, self.Plotter, "Update Re-Plot Failed",
+                                   "Updating the preprocessing failed, so the previous results were kept.\n\n" +
+                                   "Please change the preprocessing options and try again.", RestoreTable=True)
+    # ------------------------------------------------------------------------------------------------------------------
     def RePlot_Button_Function(self):
         # First, update the Gaussian list from the table. 
         Nrows = self.GL_Table.rowCount()
@@ -1721,14 +1985,10 @@ class MainPage(QMainWindow):
         GL = GL[GL[:, -1] != 0.0]       # Remove the peaks without amplitude. 
         GL = GL[np.argsort(GL[:, 0]), :]
         # Then, find the index of the Carbonyl, Sulfoxide, and Aliphatic peaks. 
-        Aliphatic_Gaussians = GL[(GL[:, 0] < 1525) & (GL[:, 0] > 1350), :]
-        Aliphatic_Gaussians = Aliphatic_Gaussians[Aliphatic_Gaussians[:, 2].argsort(), :]       # Sort based on Amplitude.
-        Aliphatic_Gaussians = Aliphatic_Gaussians[-2:, :]       # Took only the biggest peaks. 
-        Carbonyl_Gaussians = GL[(GL[:, 0] < 1720) & (GL[:, 0] > 1660), :]
-        Sulfoxide_Gaussians = GL[(GL[:, 0] < 1070) & (GL[:, 0] > 970), :]
-        Index = np.argmin(np.abs(Sulfoxide_Gaussians[:, 0] - 1030))
-        Index2= np.argmax(Sulfoxide_Gaussians[:, 2])
-        Sulfoxide_Gaussians = Sulfoxide_Gaussians[[Index2], :]
+        Groups = Get_Gaussian_Group_Indices(GL)
+        Carbonyl_Gaussians = GL[Groups['Carbonyl'], :]
+        Sulfoxide_Gaussians = GL[Groups['Sulfoxide'], :]
+        Aliphatic_Gaussians = GL[Groups['Aliphatic'], :]
         # Update the areas and indices. 
         CArea = (Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Carbonyl_Gaussians[:, 1])).sum()
         SArea = (Sulfoxide_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Sulfoxide_Gaussians[:, 1])).sum()

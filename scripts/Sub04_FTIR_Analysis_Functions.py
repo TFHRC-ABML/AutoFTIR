@@ -104,6 +104,9 @@ def Baseline_Adjustment_ALS(Data, Lambda, Ratio, NumIter):
     Data2[:, 1] = Data2[:, 1] - Baseline
     # Find the index of data points with negative intensity.
     Index = np.where(Data2[:, 1] < 0)[0]
+    if len(Index) < 3:
+        raise Exception('The baseline of this spectrum could not be adjusted, since it has almost no points below the ' +
+                        'fitted baseline. Please check if the absorbance values are all the same (e.g., all zeros).')
     Batches, TempList = [], []
     i = 0
     while True:
@@ -864,6 +867,58 @@ def Gaussian_Function(x, a, Mu, Sigma):
     :return: 
     """
     return a * np.exp(-((x - Mu) ** 2) / (2 * Sigma ** 2))
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Get_Aliphatic_Peaks(X, Y, Xmin, Xmax, AliphaticGaussians):
+    """
+    This function finds the two Aliphatic peaks of a spectrum, for saving to the database. They are always the peaks of the
+    measured spectrum. If the spectrum has fewer than two peaks in the range, but the two fitted Aliphatic Gaussians are in
+    the range, the record can still be saved: only the peaks really found in the spectrum are returned, and the missing
+    ones are None, along with a warning for the user. If neither of them has two peaks in the range, an error is raised.
+
+    :param X: An array of the processed wavenumbers (1/cm).
+    :param Y: An array of the processed absorbance.
+    :param Xmin: Minimum of the Aliphatic range (1/cm).
+    :param Xmax: Maximum of the Aliphatic range (1/cm).
+    :param AliphaticGaussians: An array of the Aliphatic Gaussians (mean, standard deviation, amplitude).
+    :return: A list of the two locations, a list of the two absorbance values, and the warning (an empty string if there
+    is none). The first one is the lower wavenumber.
+    """
+    XPeak, YPeak = Find_Peaks(np.column_stack((X, Y)), [Xmin, Xmax], 0.001)[:2]
+    XPeak, YPeak = np.array(XPeak, dtype=float), np.array(YPeak, dtype=float)
+    if len(XPeak) >= 2:
+        # If there are more than two peaks, the two highest ones are the main peaks, sorted based on their location.
+        Index = np.argsort(YPeak)[-2:]
+        Index = Index[np.argsort(XPeak[Index])]
+        return XPeak[Index].tolist(), YPeak[Index].tolist(), ''
+    # The spectrum doesn't have two peaks, so check the Gaussians, which the user can edit.
+    Means = np.sort(AliphaticGaussians[:, 0]) if len(AliphaticGaussians) > 0 else np.zeros(0)
+    Means = Means[(Means >= Xmin) & (Means <= Xmax)]
+    Range = f'{Xmin:.1f} to {Xmax:.1f} cm^-1'
+    def Show(Values):
+        return f'{len(Values)}' + (f" ({', '.join(f'{Value:.1f}' for Value in Values)})" if len(Values) > 0 else '')
+    if len(Means) < 2:
+        raise Exception(f'Two Aliphatic peaks are needed in the range of {Range}, in either the measured spectrum or the '
+                        f'fitted Gaussians, but neither of them has two.\n'
+                        f'    Peaks of the measured spectrum in this range: {Show(XPeak)}\n'
+                        f'    The two biggest Aliphatic Gaussians (used for the Aliphatic area) in this range: {Show(Means)}\n\n'
+                        f'Editing the Gaussians does not change the peaks of the spectrum, but two Gaussians in this range '
+                        f'are enough for saving. You can edit the Gaussians, or change the Aliphatic range.')
+    # Keep the peak which was found in the spectrum, in the place of the Gaussian that it is closest to.
+    Locations, Values = [None, None], [None, None]
+    for Location, Value in zip(XPeak, YPeak):
+        Place = int(np.argmin(np.abs(Means[:2] - Location)))
+        Locations[Place], Values[Place] = float(Location), float(Value)
+    Empty = [Name for Name, Location in zip(['first (lower wavenumber)', 'second'], Locations) if Location is None]
+    Warning = (f'This record was saved, but please note:\n\n'
+               f'The measured spectrum has fewer than two Aliphatic peaks in the range of {Range}. It has {Show(XPeak)}.\n\n'
+               f'However, the two biggest fitted Aliphatic Gaussians (used for the Aliphatic area) satisfy this range: {Show(Means)}.\n\n'
+               f'So, the Aliphatic peak values are only saved for the peaks found in the spectrum. The '
+               f'{" and ".join(Empty)} Aliphatic peak location and absorbance are empty in the database.')
+    return Locations, Values, Warning
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

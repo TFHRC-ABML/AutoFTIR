@@ -19,6 +19,30 @@ from scipy.optimize import curve_fit, root_scalar, least_squares
 from scipy.interpolate import interp1d
 
 
+# The range of the mean of the Gaussians (1/cm) for each group, used in calculating the areas. The user can change them
+#   from "Run > Spectral Ranges...", only until the program is closed, so all the code should read them from here.
+Default_Gaussian_Group_Ranges = {'Carbonyl': (1660, 1720), 'Sulfoxide': (970, 1070), 'Aliphatic': (1350, 1525)}
+Gaussian_Group_Ranges = dict(Default_Gaussian_Group_Ranges)
+# The allowed values of the (lower limit), (upper limit) of each group. They keep the peaks of each group inside its range,
+#   and the two limits can't cross each other.
+Gaussian_Group_Limits = {'Carbonyl': ((1620, 1660), (1705, 1780)), 'Sulfoxide': ((940, 1000), (1040, 1100)),
+                         'Aliphatic': ((1300, 1370), (1460, 1550))}
+
+
+def Set_Gaussian_Group_Ranges(Ranges):
+    """
+    This function changes the ranges of the groups for the rest of this session, if all of them are allowed.
+
+    :param Ranges: A dictionary of the (lower, upper) of each group.
+    """
+    for Group, (LowerLimits, UpperLimits) in Gaussian_Group_Limits.items():
+        Lower, Upper = Ranges[Group]
+        if not (LowerLimits[0] <= Lower <= LowerLimits[1] and UpperLimits[0] <= Upper <= UpperLimits[1] and Lower < Upper):
+            raise ValueError(f'The {Group} range of {Lower} to {Upper} cm^-1 is not allowed.')
+    # The same dictionary is changed, since the other scripts have imported it.
+    Gaussian_Group_Ranges.update({Group: (Ranges[Group][0], Ranges[Group][1]) for Group in Gaussian_Group_Limits})
+
+
 def Run_Deconvolution(X, Y, GlobalRefit=False, MinPeakHeight=0.004, MaxIterations=200):
     """
     This is the main function to perform the deconvolution of the FTIR result spectrum. For this purpose, the code will
@@ -75,23 +99,30 @@ def Run_Deconvolution(X, Y, GlobalRefit=False, MinPeakHeight=0.004, MaxIteration
         Gaussian_List = Global_Refit_Gaussians(X, Y, Gaussian_List, General_Xmin, General_Xmax)
     # ------------------------------------------------------------------------------------------------------------------
     # Convert the Gaussian results into an array and sort them.
+    if len(Gaussian_List) == 0:
+        raise Exception('No Gaussians could be fitted to this spectrum, so it has no peaks to analyze.')
     Gaussian_List = np.array(Gaussian_List)
     Gaussian_List = Gaussian_List[Gaussian_List[:, 0].argsort(), :]         # Sort based on wavenumber (report purpose).
     # ------------------------------------------------------------------------------------------------------------------
-    # Calculate the Aliphatic area: it only include the two main peaks between 1350 to 1525 (1/cm). Usually, we're 
-    #   expecting them around 1375 and 1450 1/cm. 
-    Aliphatic_Gaussians = Gaussian_List[(Gaussian_List[:, 0] < 1525) & (Gaussian_List[:, 0] > 1350), :]
+    # Calculate the Aliphatic area: it only include the two main peaks in its range (by default, between 1350 to 1525
+    #   1/cm). Usually, we're expecting them around 1375 and 1450 1/cm.
+    Xmin, Xmax = Gaussian_Group_Ranges['Aliphatic']
+    Aliphatic_Gaussians = Gaussian_List[(Gaussian_List[:, 0] < Xmax) & (Gaussian_List[:, 0] > Xmin), :]
     Aliphatic_Gaussians = Aliphatic_Gaussians[Aliphatic_Gaussians[:, 2].argsort(), :]       # Sort based on Amplitude.
     Aliphatic_Gaussians = Aliphatic_Gaussians[-2:, :]       # Took only the biggest peaks. 
     Aliphatic_Area = (Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Aliphatic_Gaussians[:, 1])).sum()
     # ------------------------------------------------------------------------------------------------------------------
-    # Calculate the Carbonyl area: it is calculated using the peaks in the range of 1660 to 1720 1/cm.
-    Carbonyl_Gaussians = Gaussian_List[(Gaussian_List[:, 0] < 1720) & (Gaussian_List[:, 0] > 1660), :]
+    # Calculate the Carbonyl area: it is calculated using the peaks in its range (by default, 1660 to 1720 1/cm).
+    Xmin, Xmax = Gaussian_Group_Ranges['Carbonyl']
+    Carbonyl_Gaussians = Gaussian_List[(Gaussian_List[:, 0] < Xmax) & (Gaussian_List[:, 0] > Xmin), :]
     Carbonyl_Area = (Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Carbonyl_Gaussians[:, 1])).sum()
     # ------------------------------------------------------------------------------------------------------------------
-    # Calculate the Sulfoxide area: it is calculated using one peak in the range of 970 to 1070 1/cm, which is the 
-    #   closest to 1030 1/cm.
-    Sulfoxide_Gaussian = Gaussian_List[(Gaussian_List[:, 0] < 1070) & (Gaussian_List[:, 0] > 970), :]
+    # Calculate the Sulfoxide area: it is calculated using one peak in its range (by default, 970 to 1070 1/cm), which is
+    #   the closest to 1030 1/cm.
+    Xmin, Xmax = Gaussian_Group_Ranges['Sulfoxide']
+    Sulfoxide_Gaussian = Gaussian_List[(Gaussian_List[:, 0] < Xmax) & (Gaussian_List[:, 0] > Xmin), :]
+    if Sulfoxide_Gaussian.shape[0] == 0:
+        raise Exception(f'No Gaussian was fitted in the Sulfoxide range of {Xmin} to {Xmax} cm^-1.')
     Index = np.argmin(np.abs(Sulfoxide_Gaussian[:, 0] - 1030))
     Index2= np.argmax(Sulfoxide_Gaussian[:, 2])
     # if Index != Index2:
@@ -297,6 +328,28 @@ def Global_Refit_Gaussians(X, Y, Gaussians, Xmin, Xmax, MuTolerance=2, SigmaBoun
     G = Res.x.reshape(N, 3)
     # Return the results (removing the vanished Gaussians).
     return G[G[:, 2] > 1e-6, :]
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Get_Gaussian_Group_Indices(Gaussians):
+    """
+    This function finds which Gaussians count toward the Carbonyl, Sulfoxide, and Aliphatic areas: all the peaks in the
+    Carbonyl range, the biggest peak in the Sulfoxide range, and the two biggest peaks in the Aliphatic range. Any of the
+    groups might be empty, depending on the input.
+
+    :param Gaussians: An array of the Gaussians, where the columns are the mean, standard deviation, and amplitude.
+    :return: A dictionary of the row indices of each group (the Aliphatic ones are sorted based on the amplitude).
+    """
+    Means, Amplitudes = Gaussians[:, 0], Gaussians[:, 2]
+    Groups = {}
+    for Group, (Xmin, Xmax) in Gaussian_Group_Ranges.items():
+        Groups[Group] = np.where((Means > Xmin) & (Means < Xmax))[0]
+    Groups['Aliphatic'] = Groups['Aliphatic'][Amplitudes[Groups['Aliphatic']].argsort()][-2:]
+    if Groups['Sulfoxide'].size > 0:
+        Groups['Sulfoxide'] = Groups['Sulfoxide'][[np.argmax(Amplitudes[Groups['Sulfoxide']])]]
+    return Groups
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

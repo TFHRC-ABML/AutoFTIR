@@ -8,6 +8,7 @@
 import os
 import sys
 import sqlite3
+import traceback
 import numpy as np
 import pandas as pd
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QSpinBox, QDoubleSpinBox, QLabel, \
@@ -22,7 +23,98 @@ from scripts.Sub04_FTIR_Analysis_Functions import Read_FTIR_Data, Baseline_Adjus
     Calc_Aliphatic_Area, Calc_Carbonyl_Area, Calc_Sulfoxide_Area, Array_to_Binary, Binary_to_Array, Find_Peaks, \
     Normalization_Method_A, Normalization_Method_B, Normalization_Method_C, Normalization_Method_D 
 from scripts.Sub05_ReviewPage import DB_ReviewPage
-from scripts.Sub07_Deconvolution_Analysis import gaussian_bell, Run_Deconvolution
+from scripts.Sub07_Deconvolution_Analysis import gaussian_bell, Run_Deconvolution, Get_Gaussian_Group_Indices
+from scripts.Sub04_FTIR_Analysis_Functions import Get_Aliphatic_Peaks
+from scripts.Sub09_Gaussian_DragEditor import Gaussian_Drag_Editor, Fill_Gaussian_Table
+from scripts.Sub10_Rheology_Prediction import Create_Results_GroupBox, Save_Rheology_Results
+
+
+def Show_Failure_Message(Parent, Title, Text, Icon=QMessageBox.Critical):
+    """
+    This function tells the user that something failed. It should be called while handling the error, since the full
+    details of the error go under the "Show Details..." button of the message, and to the terminal.
+
+    :param Parent: The page.
+    :param Title: The title of the message.
+    :param Text: What failed, what can be done, and the reason.
+    :param Icon: The icon of the message.
+    """
+    Details = traceback.format_exc()
+    print(Details)
+    Message = QMessageBox(Parent)
+    Message.setIcon(Icon)
+    Message.setWindowTitle(Title)
+    Message.setText(Text)
+    Message.setDetailedText(Details)
+    Message.setStandardButtons(QMessageBox.Ok)
+    Message.exec_()
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Run_And_Restore_On_Failure(Page, Function, Replot, Title, Text, RestoreTable=False):
+    """
+    This function runs a step of a page which changes the results on it. If the step fails, the page goes back to how it
+    was, and the user gets the reason, instead of the program closing. Going back is needed since a step can fail halfway,
+    and the save buttons should not get a mix of the new and previous results.
+
+    :param Page: The Main or Modify page.
+    :param Function: The step to run.
+    :param Replot: The function of the page that plots its current results.
+    :param Title: The title of the message.
+    :param Text: What failed and what can be done.
+    :param RestoreTable: If True, the Gaussian table is restored as well.
+    :return: True if the step worked, False if the page went back.
+    """
+    Saved = dict(vars(Page))
+    Deconv = dict(getattr(Page, 'Deconv', {}))
+    Labels = [Page.Decon_Label_CArea, Page.Decon_Label_SArea, Page.Decon_Label_AArea, Page.Decon_Label_Index]
+    LabelTexts = [Label.text() for Label in Labels]
+    Table = Page.GL_Table
+    TableTexts = [[Table.item(Row, Col).text() if Table.item(Row, Col) else None for Col in range(Table.columnCount())]
+                  for Row in range(Table.rowCount())]
+    try:
+        Function()
+        return True
+    except Exception as Err:
+        Reason = str(Err) or type(Err).__name__
+        Details = traceback.format_exc()
+    vars(Page).update(Saved)
+    Page.Deconv = Deconv
+    for Label, LabelText in zip(Labels, LabelTexts):
+        Label.setText(LabelText)
+    if RestoreTable:
+        Table.setRowCount(len(TableTexts))
+        for Row, Texts in enumerate(TableTexts):
+            for Col, Value in enumerate(Texts):
+                Table.setItem(Row, Col, None if Value is None else QTableWidgetItem(Value))
+    try:
+        Replot()
+    except Exception:
+        Details += '\n' + traceback.format_exc()
+        Text += '\n\nThe plots could not be restored either, but the previous results are still the ones that get saved.'
+    print(Details)
+    Message = QMessageBox(Page)
+    Message.setIcon(QMessageBox.Critical)
+    Message.setWindowTitle(Title)
+    Message.setText(f'{Text}\n\nReason:\n{Reason}')
+    Message.setDetailedText(Details)
+    Message.setStandardButtons(QMessageBox.Ok)
+    Message.exec_()
+    return False
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Show_Accept_Failed_Message(Parent, Err, Action):
+    # The "OK & Accept" button failed.
+    Show_Failure_Message(Parent, "OK & Accept Failed", f'{Action} failed, and nothing was saved.\n\nPlease either fix the ' +
+                         f'file or save it as an outlier, using "Mark as Outlier".\n\nReason:\n{str(Err) or type(Err).__name__}')
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
 
 
 class Revise_FTIR_AnalysisPage(QMainWindow):
@@ -197,7 +289,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         # Replotting button.
         self.Button_UpdatePreprocess = QPushButton("Update\nRe-Plot")
         self.Button_UpdatePreprocess.setFont(QFont("Arial", 8))
-        self.Button_UpdatePreprocess.clicked.connect(self.Function_Button_UpdatePreprocessing)
+        self.Button_UpdatePreprocess.clicked.connect(self.Function_Button_Safe_UpdatePreprocessing)
         self.Button_UpdatePreprocess.setStyleSheet(self.PushButtonStyle['General'])
         self.Button_UpdatePreprocess.setSizePolicy(self.Button_UpdatePreprocess.sizePolicy().Expanding, 
                                                    self.Button_UpdatePreprocess.sizePolicy().Preferred)
@@ -234,7 +326,12 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.NumFilesProgress_bar.setMaximum(100)
         self.NumFilesProgress_bar.setValue(100)
         FormLayout_Sec2_down.addRow(self.Label_NumFilesProgress, self.NumFilesProgress_bar)
-        Section02_Layout.addLayout(FormLayout_Sec2_top)
+        # The button for editing the Gaussians with the mouse, at the upper right corner of this section.
+        self.Button_EditGaussians = QPushButton("Edit Gaussians")
+        Layout_Sec2_top = QHBoxLayout()
+        Layout_Sec2_top.addLayout(FormLayout_Sec2_top, 1)
+        Layout_Sec2_top.addWidget(self.Button_EditGaussians)
+        Section02_Layout.addLayout(Layout_Sec2_top)
         Section02_Layout.addLayout(FormLayout_Sec2_down)
         # Prepare the plots. 
         self.fig = Figure(figsize=(10, 7))
@@ -313,7 +410,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             FormLayout_Spinbox.addRow(label, spinbox)
         Section04_Layout.addLayout(FormLayout_Spinbox)
         # Add button to save the progress. 
-        self.Button_SaveProgress = QPushButton("Cencel")
+        self.Button_SaveProgress = QPushButton("Cancel")
         self.Button_SaveProgress.setStyleSheet(self.PushButtonStyle['General'])
         self.Button_SaveProgress.setSizePolicy(self.Button_SaveProgress.sizePolicy().Expanding, 
                                                self.Button_SaveProgress.sizePolicy().Preferred)
@@ -339,17 +436,12 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         RightLayout.addWidget(Section04, 30)
         # --------------------------------------------------------------------------------------------------------------
         # Section 06: Results of the deconvolution. 
-        Section06 = QGroupBox("Deconvolution analysis results:")
-        Section06_Layout = QVBoxLayout()
         self.Decon_Label_CArea = QLabel('Carbonyl Area: ')
         self.Decon_Label_SArea = QLabel('Sulfoxide Area: ')
         self.Decon_Label_AArea = QLabel('Aliphatic Area: ')
         self.Decon_Label_Index = QLabel('ICO: N/A, ISO: N/A')
-        Section06_Layout.addWidget(self.Decon_Label_CArea)
-        Section06_Layout.addWidget(self.Decon_Label_SArea)
-        Section06_Layout.addWidget(self.Decon_Label_AArea)
-        Section06_Layout.addWidget(self.Decon_Label_Index)
-        Section06.setLayout(Section06_Layout)
+        Section06, self.RheologyTab = Create_Results_GroupBox([self.Decon_Label_CArea, self.Decon_Label_SArea,
+                                                               self.Decon_Label_AArea, self.Decon_Label_Index])
         RightLayout.addWidget(Section06, 10)
         # # --------------------------------------------------------------------------------------------------------------
         # # Section 05: Output section. 
@@ -370,7 +462,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.RePlot_Button.setStyleSheet(self.PushButtonStyle['General'])
         self.RePlot_Button.setSizePolicy(self.RePlot_Button.sizePolicy().Expanding, 
                                          self.RePlot_Button.sizePolicy().Preferred)
-        self.RePlot_Button.clicked.connect(self.RePlot_Button_Function)
+        self.RePlot_Button.clicked.connect(self.Function_Button_RePlot)
         self.RePlot_Button.setEnabled(True)
         self.AddNewRow_Button = QPushButton("Add row")
         self.AddNewRow_Button.setStyleSheet(self.PushButtonStyle['General'])
@@ -393,6 +485,12 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         Section07.setLayout(Section07_Layout)
         RightLayout.addWidget(Section07, 44)
         # --------------------------------------------------------------------------------------------------------------
+        # Editing the Gaussians with the mouse.
+        self.GaussianEditor = Gaussian_Drag_Editor(
+            self, self.Button_EditGaussians, lambda: self.GaussianList,
+            [self.RePlot_Button, self.AddNewRow_Button, self.GL_Table, self.Button_OK, self.Button_Outlier,
+             self.Button_SaveProgress, self.Button_UpdatePreprocess] + self.spinboxes)
+        # --------------------------------------------------------------------------------------------------------------
         # At the very end, add the left and right layouts to the main layout.
         layout.addLayout(LeftLayout, 80)
         layout.addLayout(RightLayout, 20)
@@ -401,8 +499,11 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         # Update label with the shared data when this stack becomes visible
         # self.data_label.setText(f"Received data: {self.shared_data.data}")
         super().showEvent(event)
-        
-        # Retrieve the data from the database. 
+        # Restoring a minimized window also comes here, and it shouldn't reload the record and lose the unsaved changes.
+        if event.spontaneous():
+            return
+
+        # Retrieve the data from the database.
         self.cursor.execute(f"SELECT {', '.join(self.Columns2Fetch)} FROM FTIR WHERE id = ?", 
                             (self.shared_data.data,))
         row = self.cursor.fetchall()[0]
@@ -431,6 +532,8 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         RawX = Binary_to_Array(row[35], row[36], row[37])
         RawY = Binary_to_Array(row[38], row[39], row[40])
         self.RawData = np.column_stack((RawX, RawY))
+        # Predict the rheological properties, which only use the raw spectrum.
+        self.RheologyTab.Set_Spectrum(RawX, RawY)
         ICO   = row[25]
         ISO   = row[26]
         # --------------------------------------------------------------------------------------------------------------
@@ -727,8 +830,8 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.stack.setCurrentIndex(1)
         return
     # ------------------------------------------------------------------------------------------------------------------
-    def Outlier_Button_Function(self):
-        # Extract the spin box values. 
+    def Save_Outlier_Record(self):
+        # Extract the spin box values.
         XCmin = self.spinboxes[0].value()
         XCmax = self.spinboxes[1].value()
         XSmin = self.spinboxes[2].value()
@@ -793,18 +896,30 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             "Decon_Aliphatic": Aarr, "Decon_Aliphatic_shape": Ashape, "Decon_Aliphatic_dtype": Atype, 
             "Decon_GaussianList": Garr, "Decon_GaussianList_shape": Gshape, "Decon_GaussianList_dtype": Gtype, 
             "Decon_ICO": -1.0, "Decon_ISO": -1.0,
-            "IsOutlier": 1, 
+            "IsOutlier": 1,
             "ALS_Lambda": self.ALS_Lambda, "ALS_Ratio": self.ALS_Ratio, "ALS_NumIter": self.ALS_NumIter,
-            "Normalization_Method": self.Normalization_Method.split(" (4")[0].replace(' ', '_'), 
+            "Normalization_Method": self.Normalization_Method.split(" (4")[0].replace(' ', '_'),
             "Normalization_Coeff": self.Normalization_Coeff})
+        Save_Rheology_Results(self, self.conn, self.cursor, self.shared_data.data, None, IsOutlier=True)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Outlier_Button_Function(self):
+        # A spectrum which can't be saved shouldn't close the program. So, the user stays on this record and gets the reason.
+        try:
+            self.Save_Outlier_Record()
+        except Exception as Err:
+            self.conn.rollback()
+            Show_Failure_Message(self, "Mark as Outlier Failed", f'Saving this record as an outlier failed, and nothing was saved.\n\n' +
+                                 'Please either repair the file manually, or cancel the analysis using the "Cancel" ' +
+                                 f'button.\n\nReason:\n{str(Err) or type(Err).__name__}')
+            return
         # --------------------------------------------------------------------------------------------------------------
         # Return to the stack widget 2. 
         self.stack.setCurrentIndex(1)
         # Return Nothing.
         return
     # ------------------------------------------------------------------------------------------------------------------
-    def OK_Button_Function(self):
-        # Extract the spin box values. 
+    def Save_Accepted_Record(self):
+        # Extract the spin box values.
         XCmin = self.spinboxes[0].value()
         XCmax = self.spinboxes[1].value()
         XSmin = self.spinboxes[2].value()
@@ -838,21 +953,8 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         # Save the results to the database. 
         Xbinary, Xshape, Xdtype = Array_to_Binary(self.X)
         Ybinary, Yshape, Ydtype = Array_to_Binary(self.Y)
-        # Find the Aliphatic peaks.
-        XPeak, YPeak, Prominence, XLeft, XRight = Find_Peaks(np.hstack((self.X.reshape(-1, 1), self.Y.reshape(-1, 1))), 
-                                                             [XAmin, XAmax], 0.001)
-        # Check if two peaks were found. 
-        if len(XPeak) < 1:
-            raise Exception(f'Peak was NOT found in the range of {XAmin:.1f} to {XAmax:.1f} cm^-1 for this binder! ' +
-                            f'Check manually!')
-        elif len(XPeak) > 1:
-            # More than two peak were found. Using two close ones as main peaks.
-            SortedIndex = np.argsort(YPeak)
-            MaxIndex    = SortedIndex[-2:]      # Get the highwst peaks. 
-            MaxIndex    = MaxIndex[np.argsort(np.array(XPeak)[MaxIndex])]       # Sort based on their location.
-            # Fix the Peaks. 
-            XPeak = np.array(XPeak)[MaxIndex]
-            YPeak = np.array(YPeak)[MaxIndex]
+        # Find the Aliphatic peaks in the spectrum. If they are not enough, the fitted Gaussians are checked as well.
+        XPeak, YPeak, AliphaticWarning = Get_Aliphatic_Peaks(self.X, self.Y, XAmin, XAmax, self.Aliphatic_Gaussians)
         # Convert Arrays to binary.
         Carr, Cshape, Ctype = Array_to_Binary(self.Carbonyl_Gaussians)
         Sarr, Sshape, Stype = Array_to_Binary(self.Sulfoxide_Gaussians)
@@ -878,7 +980,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             "Carbonyl_Peak_Absorption": self.Y[CIndex][np.argmax(self.Y[CIndex])],
             "Sulfoxide_Peak_Absorption": self.Y[SIndex][np.argmax(self.Y[SIndex])],
             "Aliphatic_Peak_Absorption_1": YPeak[0],
-            "Aliphatic_Peak_Absorption_2": YPeak[0],
+            "Aliphatic_Peak_Absorption_2": YPeak[1],
             "Wavenumber": Xbinary, "Wavenumber_shape": Xshape, "Wavenumber_dtype": Xdtype,
             "Absorption": Ybinary, "Absorption_shape": Yshape, "Absorption_dtype": Ydtype,
             "Carbonyl_Min_Wavenumber": XCmin,  "Carbonyl_Max_Wavenumber": XCmax,
@@ -891,8 +993,20 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             "Decon_ICO": Decon_ICO, "Decon_ISO": Decon_ISO,
             "IsOutlier": 0,
             "ALS_Lambda": self.ALS_Lambda, "ALS_Ratio": self.ALS_Ratio, "ALS_NumIter": self.ALS_NumIter,
-            "Normalization_Method": self.Normalization_Method.split(" (4")[0].replace(' ', '_'), 
+            "Normalization_Method": self.Normalization_Method.split(" (4")[0].replace(' ', '_'),
             "Normalization_Coeff": self.Normalization_Coeff})
+        Save_Rheology_Results(self, self.conn, self.cursor, self.shared_data.data, self.RheologyTab.Results)
+        if AliphaticWarning:
+            QMessageBox.warning(self, "Saved with a Warning", AliphaticWarning)
+    # ------------------------------------------------------------------------------------------------------------------
+    def OK_Button_Function(self):
+        # A spectrum which can't be saved shouldn't close the program. So, the user stays on this record and gets the reason.
+        try:
+            self.Save_Accepted_Record()
+        except Exception as Err:
+            self.conn.rollback()
+            Show_Accept_Failed_Message(self, Err, "Updating this record in the database")
+            return
         # --------------------------------------------------------------------------------------------------------------
         # Return to the stack widget 2. 
         self.stack.setCurrentIndex(1)
@@ -939,6 +1053,18 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         # Otherwise, return False.
         return False
     # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_RePlot(self):
+        # A failure shouldn't close the program. The values in the table stay, so the user can correct them.
+        return Run_And_Restore_On_Failure(self, self.RePlot_Button_Function, self.RePlotting, "Re-Plot Failed",
+                                   "Re-plotting from the Gaussian table failed, so the previous results were kept.\n\n" +
+                                   "Please check the values in the table and try again.")
+    # ------------------------------------------------------------------------------------------------------------------
+    def Function_Button_Safe_UpdatePreprocessing(self):
+        # A failure shouldn't close the program, or leave the new spectrum with the Gaussians of the previous one.
+        Run_And_Restore_On_Failure(self, self.Function_Button_UpdatePreprocessing, self.RePlotting, "Update Re-Plot Failed",
+                                   "Updating the preprocessing failed, so the previous results were kept.\n\n" +
+                                   "Please change the preprocessing options and try again.", RestoreTable=True)
+    # ------------------------------------------------------------------------------------------------------------------
     def RePlot_Button_Function(self):
         # First, update the Gaussian list from the table. 
         Nrows = self.GL_Table.rowCount()
@@ -955,15 +1081,10 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         GL = GL[GL[:, -1] != 0.0]       # Remove the peaks without amplitude. 
         self.GaussianList = GL[np.argsort(GL[:, 0]), :]
         # Then, find the index of the Carbonyl, Sulfoxide, and Aliphatic peaks. 
-        Aliphatic_Gaussians = self.GaussianList[(self.GaussianList[:, 0] < 1525) & (self.GaussianList[:, 0] > 1350), :]
-        Aliphatic_Gaussians = Aliphatic_Gaussians[Aliphatic_Gaussians[:, 2].argsort(), :]       # Sort based on Amplitude.
-        self.Aliphatic_Gaussians = Aliphatic_Gaussians[-2:, :]       # Took only the biggest peaks. 
-        self.Carbonyl_Gaussians = self.GaussianList[(self.GaussianList[:, 0] < 1720) & \
-                                                    (self.GaussianList[:, 0] > 1660), :]
-        Sulfoxide_Gaussians = self.GaussianList[(self.GaussianList[:, 0] < 1070) & (self.GaussianList[:, 0] > 970), :]
-        Index = np.argmin(np.abs(Sulfoxide_Gaussians[:, 0] - 1030))
-        Index2= np.argmax(Sulfoxide_Gaussians[:, 2])
-        self.Sulfoxide_Gaussians = Sulfoxide_Gaussians[[Index2], :]
+        Groups = Get_Gaussian_Group_Indices(self.GaussianList)
+        self.Carbonyl_Gaussians = self.GaussianList[Groups['Carbonyl'], :]
+        self.Sulfoxide_Gaussians = self.GaussianList[Groups['Sulfoxide'], :]
+        self.Aliphatic_Gaussians = self.GaussianList[Groups['Aliphatic'], :]
         # Update the areas and indices. 
         CArea = (self.Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Carbonyl_Gaussians[:, 1])).sum()
         SArea = (self.Sulfoxide_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Sulfoxide_Gaussians[:, 1])).sum()
@@ -1196,7 +1317,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             else:
                 self.LineEdit_ALSNumIter.setText(f"{NumIter}")
         except Exception as err:
-            QMessageBox.critical(self, "Error in Number of iterations!", err)
+            QMessageBox.critical(self, "Error in Number of iterations!", str(err))
             return
         # --------------------------------------------------------------------------------------------------------------
         # Check the Ratio.
@@ -1212,7 +1333,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             else:
                 self.LineEdit_ALSRatio.setText(f'{Ratio:.6e}')
         except Exception as err:
-            QMessageBox.critical(self, "Error in ALS Ratio!", err)
+            QMessageBox.critical(self, "Error in ALS Ratio!", str(err))
             return
         # --------------------------------------------------------------------------------------------------------------
         # Check the Lambda
@@ -1228,7 +1349,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             else:
                 self.LineEdit_ALSLambda.setText(f'{Lambda:.3e}')
         except Exception as err:
-            QMessageBox.critical(self, "Error in ALS Lambda!", err)
+            QMessageBox.critical(self, "Error in ALS Lambda!", str(err))
             return
         # --------------------------------------------------------------------------------------------------------------
         # Perform the ALS Smoothing baseline correction and normalization. 
@@ -1258,6 +1379,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.Sulfoxide_Gaussians = Deconv['Sulfoxide_Gaussians']
         self.Aliphatic_Gaussians = Deconv['Aliphatic_Gaussians']
         self.GaussianList = Deconv['Gaussian_List']
+        Fill_Gaussian_Table(self.GL_Table, self.GaussianList)
         # --------------------------------------------------------------------------------------------------------------
         # Calculating the areas and ISO, ICO values. 
         CArea = (self.Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Carbonyl_Gaussians[:, 1])).sum()
