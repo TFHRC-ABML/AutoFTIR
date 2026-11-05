@@ -12,6 +12,13 @@ import numpy as np
 from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QMessageBox, QDialog, QTextEdit
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt
+# The Windows executable shows a splash screen while it loads (see "Close_Splash_Screen"). The analysis scripts below are
+#   the slow part, so let the user know.
+try:
+    import pyi_splash
+    pyi_splash.update_text("Loading the analysis tools...")
+except ImportError:
+    pass
 from scripts.Sub01_WelcomePage import WelcomePage
 from scripts.Sub02_CreateNewSQLTable import Create_SQLite3_DB_Connect
 from scripts.Sub03_MainPage import Main_Window
@@ -20,8 +27,10 @@ from scripts.Sub03_MainPage import Main_Window
 def main():
     # Creating an instance of the PyQt Application. 
     app = QApplication(sys.argv)
+    # Loading is finished, so close the splash screen before the first window opens (it stays on top of every window).
+    Close_Splash_Screen()
     # ------------------------------------------------------------------------------------------------------------------
-    # Show a disclaimer popup. 
+    # Show a disclaimer popup.
     Disclaimer()
     # Keep coming back to the welcome page for as long as the user switches to another database.
     while True:
@@ -68,6 +77,21 @@ def main():
     # Quit the application and return Nothing.
     app.quit()
     return
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Close_Splash_Screen():
+    """
+    This function closes the splash screen that the Windows executable shows while the program is loading (PyInstaller's
+    "--splash" option). It only exists in the built executable, so running from the source code skips it.
+    """
+    try:
+        import pyi_splash
+        pyi_splash.close()
+    except ImportError:
+        pass
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

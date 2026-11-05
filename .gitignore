@@ -9,3 +9,5 @@ __pycache__/
 development/
 .claude/
 .vscode/
+# Ignoire and delete the "Recalculate ICO ISO" notebook. 
+scripts/Recalculate_ICO_ISO.ipynb

@@ -67,7 +67,7 @@ class Main_Window(QMainWindow):
     def __init__(self, conn, cursor, DB_Name, DB_Folder):
         super().__init__()
         # Creating the main window.
-        self.setWindowTitle(f"AutoFTIR (version 1.0) | Database name: {DB_Name}")
+        self.setWindowTitle(f"AutoFTIR (version 1.1.0) | Database name: {DB_Name}")
         # self.setFixedSize(1250, 900)
         self.resize(1250, 900)
         self.setMinimumSize(900, 700)
