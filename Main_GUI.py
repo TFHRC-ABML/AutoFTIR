@@ -7,6 +7,7 @@
 # Importing the required libraries.
 import os
 import sys
+import shutil
 import sqlite3
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QPushButton, QVBoxLayout, QHBoxLayout, QMessageBox, QDialog, QTextEdit
@@ -25,7 +26,9 @@ from scripts.Sub03_MainPage import Main_Window
 
 
 def main():
-    # Creating an instance of the PyQt Application. 
+    # Creating the config file from the default one, if it doesn't exist yet (e.g., a new copy of the program).
+    Create_Config_File()
+    # Creating an instance of the PyQt Application.
     app = QApplication(sys.argv)
     # Loading is finished, so close the splash screen before the first window opens (it stays on top of every window).
     Close_Splash_Screen()
@@ -77,6 +80,26 @@ def main():
     # Quit the application and return Nothing.
     app.quit()
     return
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Create_Config_File():
+    """
+    This function creates "configs/config.json" from "configs/config_default.json", if it doesn't exist. The config file
+    holds the settings of each user (e.g., the recent databases), so it is not kept in Git, while the default file is.
+    An existing config file is never changed here, and a failure only means the program starts with its defaults.
+    """
+    Root = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))     # Also for the executable.
+    Config = os.path.join(Root, 'configs', 'config.json')
+    Default = os.path.join(Root, 'configs', 'config_default.json')
+    if os.path.isfile(Config) or not os.path.isfile(Default):
+        return
+    try:
+        shutil.copyfile(Default, Config)
+    except OSError as Err:
+        print(f'The config file could not be created: {Err}')
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

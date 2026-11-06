@@ -1,0 +1,7 @@
+{
+    "Recent_DBs": [],
+    "Rheology_Model_Enabled": true,
+    "Rheology_Model_File": "data/FTIR_Rheology_Model.npz",
+    "SBS_Model_Enabled": true,
+    "SBS_Model_File": "data/FTIR_SBS_Model.npz"
+}
