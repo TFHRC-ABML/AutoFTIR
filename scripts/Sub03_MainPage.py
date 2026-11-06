@@ -41,6 +41,8 @@ from scripts.Sub11_Spectral_Ranges import Spectral_Ranges_Dialog
 from scripts.Sub10_Rheology_Prediction import Create_Results_GroupBox, Get_Model_File_Path, Get_Rheology_Model, \
     Get_Unavailable_Reason, Has_Raw_Spectrum_Columns, Predict_Rheology_For_Database, Save_Rheology_Results, \
     Select_Rheology_Model_File, Set_Rheology_Model_Active
+from scripts.Sub13_SBS_Detection_App import SBS_Tab, Save_SBS_Results, Get_SBS_Model, Get_SBS_Unavailable_Reason, \
+    Get_SBS_Model_File_Path, Select_SBS_Model_File, Set_SBS_Model_Active, Run_SBS_For_Database
 
 # The aging levels always offered when entering record details, in addition to any other level in the database.
 Default_Aging_Levels = ["ORG", "RTFO", "1PAV", "2PAV", "1PNV", "2PNV", "Extraction"]
@@ -67,7 +69,7 @@ class Main_Window(QMainWindow):
     def __init__(self, conn, cursor, DB_Name, DB_Folder):
         super().__init__()
         # Creating the main window.
-        self.setWindowTitle(f"AutoFTIR (version 1.1.0) | Database name: {DB_Name}")
+        self.setWindowTitle(f"AutoFTIR (version 1.2.0) | Database name: {DB_Name}")
         # self.setFixedSize(1250, 900)
         self.resize(1250, 900)
         self.setMinimumSize(900, 700)
@@ -200,6 +202,21 @@ class Main_Window(QMainWindow):
             Group_ModelState.addAction(Action)
             Action.triggered.connect(lambda Checked=False, Active=Active: self.Set_Rheology_Active_Function(Active))
             Menu_Rheology.addAction(Action)
+        # "SBS Detection Model" sub-menu, the same way.
+        Menu_SBS = Menu_Run.addMenu("SBS Detection Model")
+        Menu_SBS.setToolTipsVisible(True)
+        self.Action_SelectSBSModel = QAction("Select Model File...", self)
+        self.Action_SelectSBSModel.triggered.connect(self.Select_SBS_Model_Function)
+        Menu_SBS.addAction(self.Action_SelectSBSModel)
+        Menu_SBS.addSeparator()
+        self.Action_SBSModelActive = QAction("Model is Active", self)
+        self.Action_SBSModelInactive = QAction("Model is Inactive", self)
+        Group_SBSModelState = QActionGroup(self)
+        for Action, Active in [(self.Action_SBSModelActive, True), (self.Action_SBSModelInactive, False)]:
+            Action.setCheckable(True)
+            Group_SBSModelState.addAction(Action)
+            Action.triggered.connect(lambda Checked=False, Active=Active: self.Set_SBS_Active_Function(Active))
+            Menu_SBS.addAction(Action)
         Menu_Run.addSeparator()
         # "Re-calculate DB..." action.
         Action_Recalculate = QAction("Re-calculate DB...", self)
@@ -210,7 +227,12 @@ class Main_Window(QMainWindow):
         self.Action_RunRheology.triggered.connect(self.Run_Rheology_Predictions_Function)
         Menu_Run.setToolTipsVisible(True)
         Menu_Run.addAction(self.Action_RunRheology)
+        # "Run SBS Detection..." action, which is off if the SBS model is not available.
+        self.Action_RunSBS = QAction("Run SBS Detection...", self)
+        self.Action_RunSBS.triggered.connect(self.Run_SBS_Detection_Function)
+        Menu_Run.addAction(self.Action_RunSBS)
         self.Sync_Rheology_State()
+        self.Sync_SBS_State()
     # ------------------------------------------------------------------------------------------------------------------
     def Sync_File_Menu(self):
         # The "Add Data to DB" button is disabled while files are being analyzed, so its menu item should be as well.
@@ -593,6 +615,112 @@ class Main_Window(QMainWindow):
             if len(Summary['Errors']) > 10:
                 Msg += f"\n  ... and {len(Summary['Errors']) - 10} more."
         QMessageBox.information(self, "Run Rheology Predictions", Msg)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Sync_SBS_State(self):
+        """
+        This function makes the menu and the "Modification" tabs show the current state of the SBS detection model. "Model
+        is Active" is only checked if there is really a working model.
+        """
+        Active = Get_SBS_Model() is not None
+        self.Action_SBSModelActive.setChecked(Active)
+        self.Action_SBSModelInactive.setChecked(not Active)
+        self.Action_RunSBS.setEnabled(Active)
+        self.Action_RunSBS.setToolTip("Run the SBS detection for the records of the database." if Active
+                                      else Get_SBS_Unavailable_Reason())
+        self.Action_SelectSBSModel.setToolTip(f"Current model file: {Get_SBS_Model_File_Path()}")
+        self.main_page.SBSTab.Sync_With_Model()
+        self.FTIR_revise_page.SBSTab.Sync_With_Model()
+    # ------------------------------------------------------------------------------------------------------------------
+    def Select_SBS_Model_Function(self):
+        """
+        This function asks for an SBS model file, checks if it is valid, and if so, uses it instead of the current model.
+        The spectrum on the page is run again. The records already in the database keep their results.
+        """
+        Path, _ = QFileDialog.getOpenFileName(self, "Select the SBS Detection Model File",
+                                              os.path.dirname(Get_SBS_Model_File_Path()), "Model Files (*.npz)")
+        if not Path:
+            return
+        Error = Select_SBS_Model_File(Path)
+        if Error:
+            QMessageBox.critical(self, "Select Model File", "This file can't be used, so the current model did not " +
+                                 f"change.\n\n{Error}")
+            return
+        self.Sync_SBS_State()
+        Model = Get_SBS_Model()
+        if Model is None:
+            Msg = (f"The model file was selected:\n{Path}\n\nThe model is inactive, so this file will be used when you " +
+                   'select "Model is Active".')
+        else:
+            Msg = (f"The model was loaded:\n{Path}\n\nVersion: {Model.Version}\n\nThe records already in the database " +
+                   'keep their results. To update them, please use "Run SBS Detection...".')
+        QMessageBox.information(self, "Select Model File", Msg)
+    # ------------------------------------------------------------------------------------------------------------------
+    def Set_SBS_Active_Function(self, Active):
+        # This function turns the SBS detection model on or off, and saves it to the config. It takes effect right away.
+        Error = Set_SBS_Model_Active(Active)
+        self.Sync_SBS_State()
+        if Error:
+            QMessageBox.warning(self, "SBS Detection Model", f"The model state did not change.\n\n{Error}")
+    # ------------------------------------------------------------------------------------------------------------------
+    def Run_SBS_Detection_Function(self):
+        """
+        This function runs the SBS detection for the records of the database, from their saved Gaussians, and saves the
+        results. If the database doesn't have the SBS columns, they are added first. The program is frozen while this runs,
+        like "Re-calculate DB...". A failure is shown to the user, and the records stay as they were.
+        """
+        if Get_SBS_Model() is None:
+            QMessageBox.warning(self, "Run SBS Detection", Get_SBS_Unavailable_Reason())
+            return
+        Question = QMessageBox(self)
+        Question.setIcon(QMessageBox.Question)
+        Question.setWindowTitle("Run SBS Detection Confirmation")
+        Question.setText(
+            "This will run the SBS detection for every non-outlier record in the database, from its saved Gaussians, and "
+            "overwrite the SBS results already stored. The SBS results of outlier records will be empty.\n\n"
+            "If this database doesn't have the columns for the SBS results, they will be added. This cannot be undone.\n\n"
+            "Do you want to continue?")
+        Question.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        Question.setDefaultButton(QMessageBox.No)
+        if Question.exec_() != QMessageBox.Yes:
+            return
+        self.cursor.execute("SELECT COUNT(*) FROM FTIR")
+        Progress = QProgressDialog("Running the SBS detection...", None, 0, max(self.cursor.fetchone()[0], 1), self)
+        Progress.setWindowTitle("Run SBS Detection")
+        Progress.setWindowModality(Qt.ApplicationModal)
+        Progress.setMinimumDuration(0)
+        Progress.setValue(0)
+        Progress.show()
+        def Update_Progress(NumProcessed, Total):
+            Progress.setMaximum(max(Total, 1))
+            Progress.setValue(NumProcessed)
+            QApplication.processEvents()
+        try:
+            Summary = Run_SBS_For_Database(self.conn, self.cursor, progress_callback=Update_Progress)
+        except Exception:
+            Progress.close()
+            QMessageBox.critical(self, "Run SBS Detection", "The SBS detection results were not saved, because of an " +
+                                 f"error:\n\n{traceback.format_exc()}")
+            return
+        Progress.close()
+        # Update the review table, in case it is showing the SBS columns.
+        Page = self.db_review_page
+        if (not Page.InAnalysisView) and Page.DropDown_Bnumber.currentIndex() > 0:
+            Page.Function_Button_Fetch()
+        # Report the results to the user.
+        Msg = ""
+        if Summary['ColumnsAdded']:
+            Msg += "This database didn't have the columns for the SBS detection results, so they were added.\n\n"
+        Msg += (f"Records in the database: {Summary['NumRecords']}\n"
+                f"Records detected as modified: {Summary['NumModified']}\n"
+                f"Records detected as unmodified: {Summary['NumUnmodified']}\n"
+                f"Outlier records (left empty): {Summary['NumOutliers']}\n"
+                f"Records that could not be predicted: {len(Summary['Errors'])}")
+        if Summary['Errors']:
+            Msg += "\n\nThe following records could not be predicted:\n" + \
+                   "\n".join(f"  id={ErrID}: {ErrMsg}" for ErrID, ErrMsg in Summary['Errors'][:10])
+            if len(Summary['Errors']) > 10:
+                Msg += f"\n  ... and {len(Summary['Errors']) - 10} more."
+        QMessageBox.information(self, "Run SBS Detection", Msg)
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
@@ -932,8 +1060,9 @@ class MainPage(QMainWindow):
         self.Decon_Label_SArea = QLabel('Sulfoxide Area: ')
         self.Decon_Label_AArea = QLabel('Aliphatic Area: ')
         self.Decon_Label_Index = QLabel('ICO: N/A, ISO: N/A')
+        self.SBSTab = SBS_Tab()
         Section06, self.RheologyTab = Create_Results_GroupBox([self.Decon_Label_CArea, self.Decon_Label_SArea,
-                                                               self.Decon_Label_AArea, self.Decon_Label_Index])
+                                                               self.Decon_Label_AArea, self.Decon_Label_Index], self.SBSTab)
         RightLayout.addWidget(Section06, 10)
         # --------------------------------------------------------------------------------------------------------------
         Section05 = QGroupBox("Fitted Gaussians:")
@@ -1236,7 +1365,9 @@ class MainPage(QMainWindow):
             "Deconv_CarbonylList" : Cbinary, "Deconv_CarbonylList_shape" : Cshape, "Deconv_CarbonylList_dtype" : Cdtype, 
             "Deconv_SulfoxideList": Sbinary, "Deconv_SulfoxideList_shape": Sshape, "Deconv_SulfoxideList_dtype": Sdtype, 
             "Deconv_AliphaticList": Abinary, "Deconv_AliphaticList_shape": Ashape, "Deconv_AliphaticList_dtype": Adtype })
-        Save_Rheology_Results(self, self.conn, self.cursor, self.cursor.lastrowid, None, IsOutlier=True)
+        RecordID = self.cursor.lastrowid
+        Save_Rheology_Results(self, self.conn, self.cursor, RecordID, None, IsOutlier=True)
+        Save_SBS_Results(self, self.conn, self.cursor, RecordID, None, IsOutlier=True)
     # ------------------------------------------------------------------------------------------------------------------
     def Outlier_Button_Function(self):
         # A spectrum which can't be saved shouldn't close the program. So, the user stays on this file and gets the reason.
@@ -1314,7 +1445,9 @@ class MainPage(QMainWindow):
         Abinary, Ashape, Adtype = Array_to_Binary(self.Deconv['Aliphatic_Gaussians'])
         # Find the Aliphatic peaks in the spectrum. If they are not enough, the fitted Gaussians are checked as well.
         XPeak, YPeak, AliphaticWarning = Get_Aliphatic_Peaks(self.X, self.Y, XAmin, XAmax, self.Deconv['Aliphatic_Gaussians'])
-        # Append the data to the database. 
+        # Run the SBS detection for the Gaussians that get saved, so the saved results always belong to them.
+        self.Update_SBS_Tab()
+        # Append the data to the database.
         Append_to_Database(self.conn, self.cursor, {
             "Bnumber": Bnumber, "Lab_Aging": LabAging, "RepNumber": RepNumber, 
             "FileName": FileName, "FileDirectory": Folder,
@@ -1349,7 +1482,9 @@ class MainPage(QMainWindow):
             "Deconv_SulfoxideList": Sbinary, "Deconv_SulfoxideList_shape": Sshape, "Deconv_SulfoxideList_dtype": Sdtype, 
             "Deconv_AliphaticList": Abinary, "Deconv_AliphaticList_shape": Ashape, "Deconv_AliphaticList_dtype": Adtype
             })
-        Save_Rheology_Results(self, self.conn, self.cursor, self.cursor.lastrowid, self.RheologyTab.Results)
+        RecordID = self.cursor.lastrowid
+        Save_Rheology_Results(self, self.conn, self.cursor, RecordID, self.RheologyTab.Results)
+        Save_SBS_Results(self, self.conn, self.cursor, RecordID, self.SBSTab.Results)
         if AliphaticWarning:
             QMessageBox.warning(self, "Saved with a Warning", AliphaticWarning)
     # ------------------------------------------------------------------------------------------------------------------
@@ -1402,6 +1537,7 @@ class MainPage(QMainWindow):
             self.AddNewRow_Button.setEnabled(False)
             self.Button_EditGaussians.setEnabled(False)
             self.RheologyTab.Clear()
+            self.SBSTab.Clear()
             # Disable the buttons.
             self.Button_OK.setEnabled(False)
             self.Button_Outlier.setEnabled(False)
@@ -1458,6 +1594,7 @@ class MainPage(QMainWindow):
         This function renew and draw the main plot and prepare it for the next analysis.
         """
         self.RheologyTab.Clear()        # So the results of the previous file can't be saved for this one.
+        self.SBSTab.Clear()
         Data = None                     # reset the "Data" variable.
         self.Funtion_Clear_Axes()       # First, clear the plotting axes. 
         # Read the files, until a proper file achieved. 
@@ -1580,8 +1717,9 @@ class MainPage(QMainWindow):
             for col_idx in range(3):
                 item = QTableWidgetItem(f'{self.Deconv["Gaussian_List"][row_idx, col_idx]:.4e}')
                 self.GL_Table.setItem(row_idx, col_idx, item)
+        self.Update_SBS_Tab()
         # --------------------------------------------------------------------------------------------------------------
-        # Calculating the Areas. 
+        # Calculating the Areas.
         CArea = (Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Carbonyl_Gaussians[:, 1])).sum()
         SArea = (Sulfoxide_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Sulfoxide_Gaussians[:, 1])).sum()
         AArea = (Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(Aliphatic_Gaussians[:, 1])).sum()
@@ -1831,6 +1969,7 @@ class MainPage(QMainWindow):
         # --------------------------------------------------------------------------------------------------------------
         # Update the Gaussian table and the deconvolution information.
         Fill_Gaussian_Table(self.GL_Table, Deconv['Gaussian_List'])
+        self.Update_SBS_Tab()
         self.Decon_Label_CArea.setText(f'Carbonyl Area: {Deconv["Carbonyl_Area"]:.2f}')
         self.Decon_Label_SArea.setText(f'Sulfoxide Area: {Deconv["Sulfoxide_Area"]:.2f}')
         self.Decon_Label_AArea.setText(f'Aliphatic Area: {Deconv["Aliphatic_Area"]:.2f}')
@@ -2015,10 +2154,20 @@ class MainPage(QMainWindow):
         self.Deconv['Aliphatic_Area'] = AArea
         self.Deconv['ICO'] = CArea / AArea
         self.Deconv['ISO'] = SArea / AArea
-        # Now, call the function to replot. 
+        self.Update_SBS_Tab()
+        # Now, call the function to replot.
         self.Plotter()
-        # Return Nothing. 
+        # Return Nothing.
         return
+    # ------------------------------------------------------------------------------------------------------------------
+    def Update_SBS_Tab(self, Gaussians=None):
+        """
+        This function runs the SBS detection for the Gaussians of the page, or for the given ones (the mouse editor shows
+        its changes live), and shows it in the "Modification" tab. It never raises an error.
+        """
+        if Gaussians is None:
+            Gaussians = self.Deconv.get('Gaussian_List') if isinstance(self.Deconv, dict) else None
+        self.SBSTab.Set_Data(Gaussians, getattr(self, 'X', None), getattr(self, 'Y', None))
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

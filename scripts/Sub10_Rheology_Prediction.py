@@ -588,11 +588,12 @@ class Rheology_Tab(QWidget):
 # ======================================================================================================================
 
 
-def Create_Results_GroupBox(DeconvolutionLabels):
+def Create_Results_GroupBox(DeconvolutionLabels, ModificationTab=None):
     """
     This function creates the "Results" group box, with the tabs for the results of each analysis.
 
     :param DeconvolutionLabels: A list of the labels of the "Deconvolution" tab.
+    :param ModificationTab: The "Modification" tab (see "Sub13_SBS_Detection_App.py"). Without it, the tab is disabled.
     :return: The group box and the "Rheology" tab.
     """
     Deconvolution = QWidget()
@@ -601,10 +602,16 @@ def Create_Results_GroupBox(DeconvolutionLabels):
         DeconvolutionLayout.addWidget(Label)
     Rheology = Rheology_Tab()
     Tabs = QTabWidget()
+    # All the tab names stay readable: in a narrow window, the panel gets a little wider instead of hiding them.
+    Tabs.setUsesScrollButtons(False)
+    Tabs.setElideMode(Qt.ElideNone)
     Tabs.addTab(Deconvolution, "Deconvolution")
     Tabs.addTab(Rheology, "Rheology")
-    IndexModification = Tabs.addTab(QWidget(), "Modification")
-    Tabs.setTabEnabled(IndexModification, False)        # Empty for now.
+    if ModificationTab is None:
+        Tabs.setTabEnabled(Tabs.addTab(QWidget(), "Modification"), False)
+    else:
+        # Always on: while the SBS model is off, the tab says so.
+        Tabs.addTab(ModificationTab, "Modification")
     Rheology.Tabs = Tabs
     Rheology.Sync_With_Model()
     GroupBox = QGroupBox("Results")

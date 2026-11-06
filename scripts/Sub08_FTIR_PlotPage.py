@@ -24,6 +24,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font as ExcelFont
 from scripts.Sub02_CreateNewSQLTable import Get_DB_SummaryData, Get_Identifier_Combinations
 from scripts.Sub04_FTIR_Analysis_Functions import Binary_to_Array
+from scripts.Sub12_SBSDetection import Index_Bands
 
 
 class FTIR_PlotPage(QMainWindow):
@@ -79,6 +80,12 @@ class FTIR_PlotPage(QMainWindow):
             ('Carbonyl', self.PlotRegions['Carbonyl (~1780-1620)'], 'r', ''),
             ('Sulfoxide', self.PlotRegions['Sulfoxide (~1100-940)'], 'y', 'XX'),
             ('Aliphatic', self.PlotRegions['Aliphatic (~1600-1300)'], 'g', '\\\\'),
+        ]
+        # The same for the "Highlight SBS bands" checkbox: the two bands of SBS, with the windows of the SBS detection
+        #   ("Index_Bands" in Sub12), in colors and patterns that differ from the regions above.
+        self.HighlightSBSSpecs = [
+            ('Polystyrene (~699)', Index_Bands['699'], '#6A3D9A', '//'),
+            ('Polybutadiene (~966)', Index_Bands['966'], '#1F78B4', '++'),
         ]
         # Currently-drawn highlight-region axvspan artists, and the two separate legend objects (plotted-lines
         #   legend vs. region-highlight legend) -- kept as explicit references since "Axes.get_legend()" only ever
@@ -339,10 +346,16 @@ class FTIR_PlotPage(QMainWindow):
         PlotRow_Layout.addWidget(self.Spin_Offset)
         PlotRow_Layout.addWidget(QLabel("Aspect ratio:"))
         PlotRow_Layout.addWidget(self.Spin_AspectRatio)
-        self.Checkbox_HighlightRegions = QCheckBox("Highlight regions")
+        self.Checkbox_HighlightRegions = QCheckBox("Highlight ICO/ISO regions")
+        self.Checkbox_HighlightRegions.setToolTip("Shade the Carbonyl, Sulfoxide, and Aliphatic regions.")
         self.Checkbox_HighlightRegions.setChecked(True)
         self.Checkbox_HighlightRegions.stateChanged.connect(self.Function_Checkbox_HighlightRegions)
         PlotRow_Layout.addWidget(self.Checkbox_HighlightRegions)
+        self.Checkbox_HighlightSBS = QCheckBox("Highlight SBS bands")
+        self.Checkbox_HighlightSBS.setToolTip("Shade the polystyrene (~699 1/cm) and polybutadiene (~966 1/cm) bands of SBS.")
+        self.Checkbox_HighlightSBS.setChecked(False)
+        self.Checkbox_HighlightSBS.stateChanged.connect(self.Function_Checkbox_HighlightRegions)
+        PlotRow_Layout.addWidget(self.Checkbox_HighlightSBS)
         PlotRow_Layout.addStretch()
         Section01b_Layout.addLayout(PlotRow_Layout)
         # --- Action buttons -------------------------------------------------------------------------------------
@@ -705,22 +718,26 @@ class FTIR_PlotPage(QMainWindow):
     # ------------------------------------------------------------------------------------------------------------------
     def Update_Region_Highlights(self):
         """
-        Adds (or removes) the shaded Carbonyl/Sulfoxide/Aliphatic axvspan regions per the "Highlight regions"
-        checkbox. These are intentionally excluded from the main (plotted-records) legend -- see "Update_Legend".
+        Adds (or removes) the shaded Carbonyl/Sulfoxide/Aliphatic axvspan regions per the "Highlight ICO/ISO regions"
+        checkbox, and the SBS bands per the "Highlight SBS bands" checkbox. These are intentionally excluded from the
+        main (plotted-records) legend -- see "Update_Legend".
         """
         for Span in self.RegionHighlights:
             Span.remove()
         self.RegionHighlights = []
-        if not self.Checkbox_HighlightRegions.isChecked():
-            return
-        for Label, XLim, Color, Hatch in self.HighlightRegionSpecs:
+        Specs = []
+        if self.Checkbox_HighlightRegions.isChecked():
+            Specs += self.HighlightRegionSpecs
+        if self.Checkbox_HighlightSBS.isChecked():
+            Specs += self.HighlightSBSSpecs
+        for Label, XLim, Color, Hatch in Specs:
             XMin, XMax = sorted(XLim)
             Span = self.ax.axvspan(XMin, XMax, color=Color, alpha=0.15, label=Label, hatch=Hatch)
             self.RegionHighlights.append(Span)
     # ------------------------------------------------------------------------------------------------------------------
     def Function_Checkbox_HighlightRegions(self):
         """
-        Toggles the Carbonyl/Sulfoxide/Aliphatic highlight regions on/off immediately (unlike most of the other
+        Toggles the Carbonyl/Sulfoxide/Aliphatic regions or the SBS bands on/off immediately (unlike most of the other
         Visualization Properties controls, this one applies live rather than waiting for "Refresh Plot", since it
         is a pure display toggle with no data to re-fetch).
         """

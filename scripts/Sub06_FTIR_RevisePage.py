@@ -27,6 +27,7 @@ from scripts.Sub07_Deconvolution_Analysis import gaussian_bell, Run_Deconvolutio
 from scripts.Sub04_FTIR_Analysis_Functions import Get_Aliphatic_Peaks
 from scripts.Sub09_Gaussian_DragEditor import Gaussian_Drag_Editor, Fill_Gaussian_Table
 from scripts.Sub10_Rheology_Prediction import Create_Results_GroupBox, Save_Rheology_Results
+from scripts.Sub13_SBS_Detection_App import SBS_Tab, Save_SBS_Results
 
 
 def Show_Failure_Message(Parent, Title, Text, Icon=QMessageBox.Critical):
@@ -94,6 +95,9 @@ def Run_And_Restore_On_Failure(Page, Function, Replot, Title, Text, RestoreTable
     except Exception:
         Details += '\n' + traceback.format_exc()
         Text += '\n\nThe plots could not be restored either, but the previous results are still the ones that get saved.'
+    # The SBS detection follows the restored Gaussians (it never raises an error).
+    if hasattr(Page, 'Update_SBS_Tab'):
+        Page.Update_SBS_Tab()
     print(Details)
     Message = QMessageBox(Page)
     Message.setIcon(QMessageBox.Critical)
@@ -440,8 +444,9 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.Decon_Label_SArea = QLabel('Sulfoxide Area: ')
         self.Decon_Label_AArea = QLabel('Aliphatic Area: ')
         self.Decon_Label_Index = QLabel('ICO: N/A, ISO: N/A')
+        self.SBSTab = SBS_Tab()
         Section06, self.RheologyTab = Create_Results_GroupBox([self.Decon_Label_CArea, self.Decon_Label_SArea,
-                                                               self.Decon_Label_AArea, self.Decon_Label_Index])
+                                                               self.Decon_Label_AArea, self.Decon_Label_Index], self.SBSTab)
         RightLayout.addWidget(Section06, 10)
         # # --------------------------------------------------------------------------------------------------------------
         # # Section 05: Output section. 
@@ -532,8 +537,9 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         RawX = Binary_to_Array(row[35], row[36], row[37])
         RawY = Binary_to_Array(row[38], row[39], row[40])
         self.RawData = np.column_stack((RawX, RawY))
-        # Predict the rheological properties, which only use the raw spectrum.
+        # Predict the rheological properties, which only use the raw spectrum, and detect SBS from the Gaussians.
         self.RheologyTab.Set_Spectrum(RawX, RawY)
+        self.Update_SBS_Tab()
         ICO   = row[25]
         ISO   = row[26]
         # --------------------------------------------------------------------------------------------------------------
@@ -901,6 +907,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             "Normalization_Method": self.Normalization_Method.split(" (4")[0].replace(' ', '_'),
             "Normalization_Coeff": self.Normalization_Coeff})
         Save_Rheology_Results(self, self.conn, self.cursor, self.shared_data.data, None, IsOutlier=True)
+        Save_SBS_Results(self, self.conn, self.cursor, self.shared_data.data, None, IsOutlier=True)
     # ------------------------------------------------------------------------------------------------------------------
     def Outlier_Button_Function(self):
         # A spectrum which can't be saved shouldn't close the program. So, the user stays on this record and gets the reason.
@@ -966,7 +973,9 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         AArea = (self.Aliphatic_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Aliphatic_Gaussians[:, 1])).sum()
         Decon_ICO = CArea / AArea
         Decon_ISO = SArea / AArea
-        # Append the data to the database. 
+        # Run the SBS detection for the Gaussians that get saved, so the saved results always belong to them.
+        self.Update_SBS_Tab()
+        # Append the data to the database.
         Update_Row_in_Database(self.conn, self.cursor, self.shared_data.data, {
             "ICO_Baseline": ICO_base, "ICO_Tangential": ICO_tang,
             "ISO_Baseline": ISO_base, "ISO_Tangential": ISO_tang,
@@ -996,6 +1005,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             "Normalization_Method": self.Normalization_Method.split(" (4")[0].replace(' ', '_'),
             "Normalization_Coeff": self.Normalization_Coeff})
         Save_Rheology_Results(self, self.conn, self.cursor, self.shared_data.data, self.RheologyTab.Results)
+        Save_SBS_Results(self, self.conn, self.cursor, self.shared_data.data, self.SBSTab.Results)
         if AliphaticWarning:
             QMessageBox.warning(self, "Saved with a Warning", AliphaticWarning)
     # ------------------------------------------------------------------------------------------------------------------
@@ -1101,8 +1111,18 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
             for col_idx in range(3):
                 item = QTableWidgetItem(f'{self.GaussianList[row_idx, col_idx]:.4e}')
                 self.GL_Table.setItem(row_idx, col_idx, item)
-        # Now, call the function to replot. 
+        self.Update_SBS_Tab()
+        # Now, call the function to replot.
         self.RePlotting()
+    # ------------------------------------------------------------------------------------------------------------------
+    def Update_SBS_Tab(self, Gaussians=None):
+        """
+        This function runs the SBS detection for the Gaussians of the page, or for the given ones (the mouse editor shows
+        its changes live), and shows it in the "Modification" tab. It never raises an error.
+        """
+        if Gaussians is None:
+            Gaussians = getattr(self, 'GaussianList', None)
+        self.SBSTab.Set_Data(Gaussians, getattr(self, 'X', None), getattr(self, 'Y', None))
     # ------------------------------------------------------------------------------------------------------------------
     def AddNewRow_Button_Function(self):
         current_row_count = self.GL_Table.rowCount()
@@ -1380,6 +1400,7 @@ class Revise_FTIR_AnalysisPage(QMainWindow):
         self.Aliphatic_Gaussians = Deconv['Aliphatic_Gaussians']
         self.GaussianList = Deconv['Gaussian_List']
         Fill_Gaussian_Table(self.GL_Table, self.GaussianList)
+        self.Update_SBS_Tab()
         # --------------------------------------------------------------------------------------------------------------
         # Calculating the areas and ISO, ICO values. 
         CArea = (self.Carbonyl_Gaussians[:, 2] * np.sqrt(2 * np.pi) * np.abs(self.Carbonyl_Gaussians[:, 1])).sum()

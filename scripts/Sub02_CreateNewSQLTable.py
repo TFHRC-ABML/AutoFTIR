@@ -23,6 +23,10 @@ Rheology_Columns = [('Rheo_HTPG', 'REAL'), ('Rheo_HTPG_Std', 'REAL'), ('Rheo_LTP
                     ('Rheo_S_m30', 'REAL'), ('Rheo_S_m30_Std', 'REAL'), ('Rheo_m_m30', 'REAL'), ('Rheo_m_m30_Std', 'REAL'),
                     ('Rheo_InDomain', 'INTEGER'), ('Rheo_AxisScale', 'REAL'), ('Rheo_AxisCorrected', 'INTEGER'),
                     ('Rheo_ModelVersion', 'TEXT')]
+# The columns for the SBS detection (see "Sub12_SBSDetection.py" and "Sub13_SBS_Detection_App.py"), which work the same
+#   way. "SBS_Result" is "Modified" or "Unmodified", and the indices are from the bands of the notebook.
+SBS_Columns = [('SBS_Result', 'TEXT'), ('SBS_Probability', 'REAL'), ('SBS_ModelVersion', 'TEXT'), ('SBS_Warnings', 'TEXT'),
+               ('SBS_Rh699', 'REAL'), ('SBS_Rh1', 'REAL'), ('SBS_Ra1', 'REAL'), ('SBS_Ra2', 'REAL')]
 
 
 def Create_SQLite3_DB_Connect(path):
@@ -104,7 +108,7 @@ def Create_SQLite3_DB_Connect(path):
         Deconv_AliphaticList BLOB, 
         Deconv_AliphaticList_shape TEXT, 
         Deconv_AliphaticList_dtype TEXT,
-        """ + ', '.join(f'{Name} {Type}' for Name, Type in Rheology_Columns) + """
+        """ + ', '.join(f'{Name} {Type}' for Name, Type in Rheology_Columns + SBS_Columns) + """
     )
     """)
     cursor.execute("CREATE INDEX idx_filename ON FTIR (FileName);")       # Creating an index for "FileName"
@@ -162,7 +166,7 @@ def Check_Database_File(Path, RequireAllColumns=False):
         Found = ', '.join(Tables) if len(Tables) > 0 else 'none'
         return f'"{FileName}" has no table named "FTIR", which AutoFTIR needs.\n\nTables in this file: {Found}', ''
     # Check the columns.
-    Optional = [Name for Name, _ in Rheology_Columns]       # These are added to the database when they are needed.
+    Optional = [Name for Name, _ in Rheology_Columns + SBS_Columns]     # Added to the database when they are needed.
     Missing = [Name for Name in Expected if Name.lower() not in Columns and Name not in Optional]
     MissingNeeded = [Name for Name in Missing if RequireAllColumns or Name not in Older_Version_Columns]
     if len(MissingNeeded) > 0:
@@ -182,28 +186,60 @@ def Check_Database_File(Path, RequireAllColumns=False):
 # ======================================================================================================================
 
 
-def Has_Rheology_Columns(cursor):
+def Has_Columns(cursor, NewColumns):
     """
-    This function checks if the database has all the columns for the rheology predictions.
+    This function checks if the database has all the given columns, e.g., "Rheology_Columns" or "SBS_Columns".
     """
     cursor.execute("PRAGMA table_info(FTIR)")
     Columns = [Row[1].lower() for Row in cursor.fetchall()]
-    return all(Name.lower() in Columns for Name, _ in Rheology_Columns)
+    return all(Name.lower() in Columns for Name, _ in NewColumns)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Add_Columns(conn, cursor, NewColumns):
+    """
+    This function adds any of the given columns that the database doesn't have. The existing data isn't changed.
+    """
+    cursor.execute("PRAGMA table_info(FTIR)")
+    Columns = [Row[1].lower() for Row in cursor.fetchall()]
+    for Name, Type in NewColumns:
+        if Name.lower() not in Columns:
+            cursor.execute(f"ALTER TABLE FTIR ADD COLUMN {Name} {Type}")
+    conn.commit()
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Has_Rheology_Columns(cursor):
+    # Checks if the database has all the columns for the rheology predictions.
+    return Has_Columns(cursor, Rheology_Columns)
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================
 
 
 def Add_Rheology_Columns(conn, cursor):
-    """
-    This function adds any missing column for the rheology predictions to the database. The existing data isn't changed.
-    """
-    cursor.execute("PRAGMA table_info(FTIR)")
-    Columns = [Row[1].lower() for Row in cursor.fetchall()]
-    for Name, Type in Rheology_Columns:
-        if Name.lower() not in Columns:
-            cursor.execute(f"ALTER TABLE FTIR ADD COLUMN {Name} {Type}")
-    conn.commit()
+    # Adds any missing column for the rheology predictions to the database.
+    Add_Columns(conn, cursor, Rheology_Columns)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Has_SBS_Columns(cursor):
+    # Checks if the database has all the columns for the SBS detection.
+    return Has_Columns(cursor, SBS_Columns)
+# ======================================================================================================================
+# ======================================================================================================================
+# ======================================================================================================================
+
+
+def Add_SBS_Columns(conn, cursor):
+    # Adds any missing column for the SBS detection to the database.
+    Add_Columns(conn, cursor, SBS_Columns)
 # ======================================================================================================================
 # ======================================================================================================================
 # ======================================================================================================================

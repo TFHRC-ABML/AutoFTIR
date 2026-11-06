@@ -113,7 +113,10 @@ class DB_ReviewPage(QMainWindow):
             ('Rheo_S_m30', 'S at -30 (Rheo)'), ('Rheo_S_m30_Std', 'S at -30 Std (Rheo)'),
             ('Rheo_m_m30', 'm at -30 (Rheo)'), ('Rheo_m_m30_Std', 'm at -30 Std (Rheo)'),
             ('Rheo_InDomain', 'In Domain (Rheo)'), ('Rheo_AxisScale', 'Axis Scale (Rheo)'),
-            ('Rheo_AxisCorrected', 'Axis Corrected (Rheo)'), ('Rheo_ModelVersion', 'Model Version (Rheo)')]
+            ('Rheo_AxisCorrected', 'Axis Corrected (Rheo)'), ('Rheo_ModelVersion', 'Model Version (Rheo)'),
+            ('SBS_Result', 'SBS Result'), ('SBS_Probability', 'SBS Probability'),
+            ('SBS_Rh699', 'Rh699 (SBS)'), ('SBS_Rh1', 'Rh1 (SBS)'), ('SBS_Ra1', 'Ra1 (SBS)'), ('SBS_Ra2', 'Ra2 (SBS)'),
+            ('SBS_Warnings', 'Warnings (SBS)'), ('SBS_ModelVersion', 'Model Version (SBS)')]
         # Columns the user is not allowed to hide from the "Select Columns" dialog.
         self.AlwaysShownSQL = ['id', 'Bnumber', 'Lab_Aging', 'RepNumber']
         # Default columns shown when the page is first created.
@@ -717,11 +720,11 @@ class DB_ReviewPage(QMainWindow):
                                     'selecting columns for the review table.')
             return
         # Open the dialog, seeded with the currently selected columns.
-        # The rheology columns are only offered if this database has them.
+        # The rheology and SBS columns are only offered if this database has them.
         self.cursor.execute("PRAGMA table_info(FTIR)")
         Available = [Row[1].lower() for Row in self.cursor.fetchall()]
         Offered = [Column for Column in self.AllColumns
-                   if (not Column[0].startswith('Rheo_')) or Column[0].lower() in Available]
+                   if (not Column[0].startswith(('Rheo_', 'SBS_'))) or Column[0].lower() in Available]
         Dialog = SelectColumnsDialog(Offered, self.AlwaysShownSQL, self.SQL_ColumnNames, self)
         if Dialog.exec_() != QDialog.Accepted:
             return
@@ -956,8 +959,15 @@ class DB_ReviewPage(QMainWindow):
             'Carbonyl Min Wavenumber', 'Carbonyl Max Wavenumber',
             'Sulfoxide Min Wavenumber', 'Sulfoxide Max Wavenumber', 
             'Aliphatic Min Wavenumber', 'Aliphatic Max Wavenumber']
+        # The rheology and SBS detection results, if this database has their columns.
+        self.cursor.execute("PRAGMA table_info(FTIR)")
+        Available = [Row[1].lower() for Row in self.cursor.fetchall()]
+        for SQLName, Label in self.AllColumns:
+            if SQLName.startswith(('Rheo_', 'SBS_')) and SQLName.lower() in Available:
+                ColNames.append(SQLName)
+                Labels.append(Label)
         # --------------------------------------------------------------------------------------------------------------
-        # Fetch data from Database. 
+        # Fetch data from Database.
         self.cursor.execute(f"SELECT {','.join(ColNames)} FROM FTIR")
         Content = self.cursor.fetchall()
         # --------------------------------------------------------------------------------------------------------------

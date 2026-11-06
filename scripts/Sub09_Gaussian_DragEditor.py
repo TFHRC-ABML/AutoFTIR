@@ -211,6 +211,8 @@ class Gaussian_Drag_Editor:
             # Nothing to apply, so the page goes back to exactly how it was.
             for Label, Text in zip(self.Labels, LabelsBackup):
                 Label.setText(Text)
+            if hasattr(self.Page, 'Update_SBS_Tab'):
+                self.Page.Update_SBS_Tab()
             self.Page.canvas.draw()
     # ------------------------------------------------------------------------------------------------------------------
     def Apply_Gaussians(self, Gaussians, Backup, LabelsBackup):
@@ -306,6 +308,9 @@ class Gaussian_Drag_Editor:
             self.Labels[3].setText(f'ICO: {Areas[0] / Areas[2]:.4f}, ISO: {Areas[1] / Areas[2]:.4f}')
         else:
             self.Labels[3].setText('ICO: N/A, ISO: N/A')
+        # The SBS detection of the "Modification" tab is live as well (e.g., the 1377 Gaussian is its reference).
+        if hasattr(self.Page, 'Update_SBS_Tab'):
+            self.Page.Update_SBS_Tab(self.GL)
     # ------------------------------------------------------------------------------------------------------------------
     def Get_Handle_Pixels(self):
         """
