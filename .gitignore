@@ -11,3 +11,5 @@ development/
 .vscode/
 # Ignoire and delete the "Recalculate ICO ISO" notebook. 
 scripts/Recalculate_ICO_ISO.ipynb
+# Managed by hand, outside Git (recent databases and model settings).
+configs/config.json
